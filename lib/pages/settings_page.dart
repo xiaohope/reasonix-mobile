@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
 import '../providers/project_provider.dart';
 import '../services/terminal_service.dart';
@@ -52,22 +51,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   TextField(
                     decoration: const InputDecoration(
                       labelText: 'API Key',
-                      hintText: '长按可粘贴',
+                      hintText: 'sk-...',
                       prefixIcon: Icon(Icons.key),
                     ),
                     obscureText: true,
                     controller: TextEditingController(text: settings.apiKey),
-                    onChanged: (v) => settings.setApiKey(v.trim()),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.paste),
-                      tooltip: '粘贴',
-                      onPressed: () async {
-                        final data = await Clipboard.getData(Clipboard.kTextPlain);
-                        if (data?.text != null) {
-                          settings.setApiKey(data!.text!.trim());
-                        }
-                      },
-                    ),
+                    onSubmitted: (v) => settings.setApiKey(v.trim()),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -77,7 +66,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       prefixIcon: Icon(Icons.link),
                     ),
                     controller: TextEditingController(text: settings.apiBaseUrl),
-                    onChanged: (v) => settings.setApiBaseUrl(v.trim()),
+                    onSubmitted: (v) => settings.setApiBaseUrl(v.trim()),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -87,7 +76,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       prefixIcon: Icon(Icons.memory),
                     ),
                     controller: TextEditingController(text: settings.apiModel),
-                    onChanged: (v) => settings.setApiModel(v.trim()),
+                    onSubmitted: (v) => settings.setApiModel(v.trim()),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -266,13 +255,38 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _pickProject() async {
-    final result = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: '选择项目目录',
+  void _pickProject() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('项目路径'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '/storage/emulated/0/...',
+            prefixIcon: Icon(Icons.folder),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final path = controller.text.trim();
+              if (path.isNotEmpty && ctx.mounted) {
+                context.read<ProjectProvider>().openProject(path);
+                context.read<SettingsProvider>().setLastProjectPath(path);
+                Navigator.of(ctx).pop();
+              }
+            },
+            child: const Text('确认'),
+          ),
+        ],
+      ),
     );
-    if (result != null && mounted) {
-      context.read<ProjectProvider>().openProject(result);
-      context.read<SettingsProvider>().setLastProjectPath(result);
-    }
   }
 }
