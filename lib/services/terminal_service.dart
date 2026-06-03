@@ -61,7 +61,7 @@ class TerminalService {
     buf.writeln('平台: ${Platform.operatingSystem}');
     buf.writeln('版本: ${Platform.operatingSystemVersion}');
     try {
-      final result = await Process.run('sh', ['-c', 'echo "\\$SHELL"']);
+      final result = await Process.run('sh', ['-c', r'echo "$SHELL"']);
       buf.writeln('Shell: ${(result.stdout as String).trim()}');
     } catch (_) {
       buf.writeln('Shell: 不可用');
