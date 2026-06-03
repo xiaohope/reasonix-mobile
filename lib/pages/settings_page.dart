@@ -52,12 +52,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   TextField(
                     decoration: const InputDecoration(
                       labelText: 'API Key',
-                      hintText: 'sk-...',
+                      hintText: '长按可粘贴',
                       prefixIcon: Icon(Icons.key),
                     ),
                     obscureText: true,
                     controller: TextEditingController(text: settings.apiKey),
-                    onSubmitted: (v) => settings.setApiKey(v.trim()),
+                    onChanged: (v) => settings.setApiKey(v.trim()),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.paste),
                       tooltip: '粘贴',
@@ -77,7 +77,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       prefixIcon: Icon(Icons.link),
                     ),
                     controller: TextEditingController(text: settings.apiBaseUrl),
-                    onSubmitted: (v) => settings.setApiBaseUrl(v.trim()),
+                    onChanged: (v) => settings.setApiBaseUrl(v.trim()),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -87,7 +87,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       prefixIcon: Icon(Icons.memory),
                     ),
                     controller: TextEditingController(text: settings.apiModel),
-                    onSubmitted: (v) => settings.setApiModel(v.trim()),
+                    onChanged: (v) => settings.setApiModel(v.trim()),
                   ),
                   const SizedBox(height: 8),
                   Row(
