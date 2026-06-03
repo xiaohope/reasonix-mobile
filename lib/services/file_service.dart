@@ -186,9 +186,13 @@ class FileService {
 
   // ── Delete ──
   Future<void> deleteFile(String path) async {
-    final entity = FileSystemEntity(_resolve(path));
-    if (await entity.exists()) {
-      await entity.delete(recursive: true);
+    final resolved = _resolve(path);
+    final file = File(resolved);
+    final dir = Directory(resolved);
+    if (await file.exists()) {
+      await file.delete();
+    } else if (await dir.exists()) {
+      await dir.delete(recursive: true);
     }
   }
 

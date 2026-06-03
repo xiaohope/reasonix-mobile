@@ -64,7 +64,7 @@ class _TerminalPageState extends State<TerminalPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollPosition,
+          _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 100),
           curve: Curves.easeOut,
         );

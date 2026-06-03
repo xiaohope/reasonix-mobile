@@ -5,7 +5,7 @@ import '../models/file_node.dart';
 class FileTree extends StatelessWidget {
   final List<FileNode> nodes;
   final Function(FileNode)? onTap;
-  final String Function(FileNode)? trailingBuilder;
+  final Widget Function(FileNode)? trailingBuilder;
 
   const FileTree({
     super.key,
@@ -79,7 +79,7 @@ class _FileTile extends StatelessWidget {
         color = const Color(0xFFF9E2AF);
       case IconType.typescript:
       case IconType.javascript:
-        icon = Icons.javascript;
+        icon = Icons.code;
         color = const Color(0xFFF9E2AF);
       case IconType.config:
         icon = Icons.settings;
@@ -91,7 +91,7 @@ class _FileTile extends StatelessWidget {
         icon = Icons.image;
         color = const Color(0xFFA6E3A1);
       case IconType.git:
-        icon = Icons.branch;
+        icon = Icons.account_tree;
         color = const Color(0xFFF38BA8);
       case IconType.file:
         icon = Icons.insert_drive_file;

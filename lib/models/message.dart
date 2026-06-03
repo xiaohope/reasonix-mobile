@@ -7,7 +7,7 @@ class Message {
   final DateTime timestamp;
   final bool isStreaming;   // 正在流式输出
 
-  const Message({
+  Message({
     required this.role,
     required this.content,
     this.toolCallId,
