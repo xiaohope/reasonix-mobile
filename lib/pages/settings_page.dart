@@ -230,6 +230,43 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
+          // ── 权限 ──
+          _sectionTitle(context, '文件权限'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Android 11+ 需要授予「所有文件访问权限」才能读写项目文件。'),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _openAppSettings,
+                      icon: const Icon(Icons.settings),
+                      label: const Text('前往设置授予权限'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 用量 ──
+          _sectionTitle(context, '用量'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.account_balance_wallet),
+              title: const Text('查询余额'),
+              subtitle: const Text('查看 API 账户余额'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _checkBalance(),
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // ── 关于 ──
           _sectionTitle(context, '关于'),
           Card(
