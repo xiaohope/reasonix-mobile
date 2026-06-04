@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../models/tool_call.dart';
@@ -14,6 +13,12 @@ class ChatProvider extends ChangeNotifier {
   bool _isStreaming = false;
   bool _stopRequested = false;
 
+  // 累计用量
+  int _totalPromptTokens = 0;
+  int _totalCompletionTokens = 0;
+  int _totalCacheHitTokens = 0;
+  double _totalCost = 0;
+
   LlmService? _llmService;
   ToolEngine? _toolEngine;
   StreamSubscription<String>? _streamSub;
@@ -22,6 +27,20 @@ class ChatProvider extends ChangeNotifier {
   Message? get streamingMessage => _streamingMessage;
   bool get isProcessing => _isProcessing;
   bool get isStreaming => _isStreaming;
+
+  String get usageSummary {
+    final parts = <String>[];
+    if (_totalPromptTokens > 0) parts.add('⇧${_fmt(_totalPromptTokens)}');
+    if (_totalCompletionTokens > 0) parts.add('⇩${_fmt(_totalCompletionTokens)}');
+    if (_totalCacheHitTokens > 0) parts.add('📦${_fmt(_totalCacheHitTokens)}');
+    if (_totalCost > 0) parts.add('¥${_totalCost.toStringAsFixed(4)}');
+    return parts.isNotEmpty ? parts.join(' · ') : '';
+  }
+
+  static String _fmt(int n) {
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return n.toString();
+  }
 
   void initServices(LlmService llm, ToolEngine engine) {
     _llmService = llm;
@@ -71,10 +90,17 @@ class ChatProvider extends ChangeNotifier {
       final msg = choice['message'] as Map<String, dynamic>?;
       if (msg == null) break;
 
-      // 解析 usage
-      UsageInfo? usage;
+      // 累加用量
       if (firstResponse['usage'] is Map) {
-        usage = UsageInfo.fromJson(firstResponse['usage'] as Map<String, dynamic>);
+        final u = firstResponse['usage'] as Map<String, dynamic>;
+        _totalPromptTokens += u['prompt_tokens'] as int? ?? 0;
+        _totalCompletionTokens += u['completion_tokens'] as int? ?? 0;
+        _totalCacheHitTokens += u['prompt_cache_hit_tokens'] as int? ?? 0;
+        // 估算费用
+        final input = (_totalPromptTokens - _totalCacheHitTokens).clamp(0, _totalPromptTokens) * 0.000001;
+        final output = _totalCompletionTokens * 0.000002;
+        final cached = _totalCacheHitTokens * 0.0000005;
+        _totalCost = input + output + cached;
       }
 
       final toolCalls = msg['tool_calls'] as List<dynamic>?;
@@ -82,10 +108,8 @@ class ChatProvider extends ChangeNotifier {
       if (toolCalls != null && toolCalls.isNotEmpty && !_stopRequested) {
         final assistantContent = msg['content'] as String? ?? '';
         _messages.add(Message(
-          role: 'assistant',
-          content: assistantContent,
+          role: 'assistant', content: assistantContent,
           toolCalls: toolCalls.cast<Map<String, dynamic>>(),
-          usage: usage,
         ));
         notifyListeners();
 
@@ -98,7 +122,7 @@ class ChatProvider extends ChangeNotifier {
       } else {
         final textContent = msg['content'] as String? ?? '';
         if (textContent.isNotEmpty) {
-          _messages.add(Message(role: 'assistant', content: textContent, usage: usage));
+          _messages.add(Message(role: 'assistant', content: textContent));
           notifyListeners();
         }
         break;
@@ -111,17 +135,16 @@ class ChatProvider extends ChangeNotifier {
   }
 
   void _addToolResult(ToolCall call, String result) {
-    _messages.add(Message(
-      role: 'tool',
-      content: result,
-      toolCallId: call.id,
-      toolName: call.name,
-    ));
+    _messages.add(Message(role: 'tool', content: result, toolCallId: call.id, toolName: call.name));
   }
 
   void clearMessages() {
     stop();
     _messages.clear();
+    _totalPromptTokens = 0;
+    _totalCompletionTokens = 0;
+    _totalCacheHitTokens = 0;
+    _totalCost = 0;
     notifyListeners();
   }
 }

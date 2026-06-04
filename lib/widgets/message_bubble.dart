@@ -73,17 +73,7 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (message.usage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 12),
-                          child: Text(
-                            message.usage!.summary,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-                            ),
-                          ),
-                        ),
+
                     ],
                   ),
                 ),

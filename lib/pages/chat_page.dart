@@ -126,6 +126,36 @@ class _ChatPageState extends State<ChatPage> {
               ),
             ),
 
+          // 用量统计栏
+          Consumer<ChatProvider>(
+            builder: (context, chat, _) {
+              final summary = chat.usageSummary;
+              if (summary.isEmpty) return const SizedBox.shrink();
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1))),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.bar_chart, size: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        summary,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           // 消息列表
           Expanded(
             child: Consumer<ChatProvider>(
