@@ -1,3 +1,9 @@
+buildscript {
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.11.1")
+    }
+}
+
 allprojects {
     repositories {
         google()
@@ -14,7 +20,15 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+
+    afterEvaluate {
+        // Force compileSdk to 36 for all Android subprojects (fixes file_picker issue)
+        if (plugins.hasPlugin("com.android.application") || plugins.hasPlugin("com.android.library")) {
+            extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.compileSdkVersion(36)
+        }
+    }
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
 }
