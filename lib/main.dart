@@ -6,7 +6,7 @@ import 'pages/terminal_page.dart';
 import 'pages/files_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/sessions_page.dart';
-import 'providers/chat_provider_v2.dart';
+import 'providers/chat_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/project_provider.dart';
 import 'providers/terminal_provider.dart';
