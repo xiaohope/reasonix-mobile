@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "last_updated": "2025-01-01T12:00:00Z",
+  "messages": [
+    {"role": "system", "content": "你是 Reasonix，一个手机上的 AI 编程助手..."},
+    {"role": "user", "content": "你好"},
+    {"role": "assistant", "content": "你好！有什么需要帮忙的吗？"}
+  ],
+  "usage": {
+    "total_prompt_tokens": 150,
+    "total_completion_tokens": 50,
+    "total_cache_hit_tokens": 0,
+    "total_cost": 0.00025
+  }
+}

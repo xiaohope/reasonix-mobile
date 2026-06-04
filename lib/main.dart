@@ -12,20 +12,16 @@ import 'providers/terminal_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   final settings = SettingsProvider();
   await settings.load();
-
+  final projectProvider = ProjectProvider();
+  final chatProvider = ChatProvider();
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: settings),
-        ChangeNotifierProvider(create: (_) => ProjectProvider()),
-        ChangeNotifierProvider(create: (_) {
-          final chat = ChatProvider();
-          chat.load();
-          return chat;
-        }),
+        ChangeNotifierProvider.value(value: projectProvider),
+        ChangeNotifierProvider.value(value: chatProvider..initProjectProvider(projectProvider)),
         ChangeNotifierProvider(create: (_) => TerminalProvider()),
       ],
       child: const ReasonixMobileApp(),
@@ -35,7 +31,6 @@ void main() async {
 
 class ReasonixMobileApp extends StatelessWidget {
   const ReasonixMobileApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Consumer<SettingsProvider>(
@@ -55,53 +50,28 @@ class ReasonixMobileApp extends StatelessWidget {
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
-
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
-
   final List<Widget> _pages = [
-    const ChatPage(),
-    const TerminalPage(),
-    const FilesPage(),
-    const SettingsPage(),
+    const ChatPage(), const TerminalPage(), const FilesPage(), const SettingsPage(),
   ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            activeIcon: Icon(Icons.chat_bubble),
-            label: '聊天',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.terminal_outlined),
-            activeIcon: Icon(Icons.terminal),
-            label: '终端',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.folder_outlined),
-            activeIcon: Icon(Icons.folder),
-            label: '文件',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: '设置',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), activeIcon: Icon(Icons.chat_bubble), label: '聊天'),
+          BottomNavigationBarItem(icon: Icon(Icons.terminal_outlined), activeIcon: Icon(Icons.terminal), label: '终端'),
+          BottomNavigationBarItem(icon: Icon(Icons.folder_outlined), activeIcon: Icon(Icons.folder), label: '文件'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: '设置'),
         ],
       ),
     );
