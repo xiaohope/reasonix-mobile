@@ -94,13 +94,13 @@ class DirectoryBrowser extends StatefulWidget {
   final String initialPath;
   final void Function(String path) onSelected;
 
-  const _DirectoryBrowser({
+  const DirectoryBrowser({
     required this.initialPath,
     required this.onSelected,
   });
 
   @override
-  State<_DirectoryBrowser> createState() => _DirectoryBrowserState();
+  State<DirectoryBrowser> createState() => _DirectoryBrowserState();
 }
 
 class _DirectoryBrowserState extends State<DirectoryBrowser> {
