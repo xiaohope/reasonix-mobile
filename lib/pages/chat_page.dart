@@ -104,7 +104,9 @@ class _ChatPageState extends State<ChatPage> {
           ),
         ],
       ),
-      body: Column(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(
         children: [
           // 提示条
           if (!hasProject || !hasApiKey)
@@ -172,6 +174,7 @@ class _ChatPageState extends State<ChatPage> {
             enabled: hasProject && hasApiKey && !context.watch<ChatProvider>().isProcessing,
           ),
         ],
+      ),
       ),
     );
   }

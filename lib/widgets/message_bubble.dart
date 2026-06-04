@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/message.dart';
 
-/// 聊天气泡 — 简单 Markdown 文本渲染（不使用 flutter_markdown 包）
+/// 聊天气泡 — 支持 Markdown、链接点击、代码复制
 class MessageBubble extends StatelessWidget {
   final Message message;
 
@@ -22,40 +24,65 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          if (!isUser) _avatar(context, isUser),
+          if (!isUser) _avatar(context),
           const SizedBox(width: 8),
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-                    : Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isUser ? 16 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 16),
+            child: Column(
+              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                        : Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isUser ? 16 : 4),
+                      bottomRight: Radius.circular(isUser ? 4 : 16),
+                    ),
+                  ),
+                  child: isUser
+                      ? SelectableText(
+                          message.content,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        )
+                      : _buildMarkdown(context, message.content),
                 ),
-              ),
-              child: isUser
-                  ? Text(
-                      message.content,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface,
+                // 复制按钮
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, right: 4),
+                  child: GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: message.content));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
+                      );
+                    },
+                    child: Text(
+                      '复制',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
-                    )
-                  : _buildRichContent(context, message.content),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 8),
-          if (isUser) _avatar(context, isUser),
+          if (isUser) _avatar(context),
         ],
       ),
     );
   }
 
-  Widget _avatar(BuildContext context, bool isUser) {
+  Widget _avatar(BuildContext context) {
+    final isUser = message.role == 'user';
     return CircleAvatar(
       radius: 14,
       backgroundColor: isUser
@@ -69,69 +96,102 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  /// 简单 Markdown 渲染：支持 **加粗**、`代码`、```代码块```、普通文本
-  Widget _buildRichContent(BuildContext context, String text) {
-    final spans = <TextSpan>[];
+  /// Markdown 渲染：支持代码块、行内代码、加粗、链接
+  Widget _buildMarkdown(BuildContext context, String text) {
+    final children = <Widget>[];
     final lines = text.split('\n');
-    final isCodeBlock = <bool>[];
+    final codeLines = <String>[];
+    bool inCodeBlock = false;
+    String codeLang = '';
 
     for (final line in lines) {
-      // 代码块
       if (line.trimLeft().startsWith('```')) {
-        if (isCodeBlock.isEmpty || !isCodeBlock.last) {
-          isCodeBlock.add(true);
-          spans.add(TextSpan(
-            text: '\n',
-            style: TextStyle(
-              color: const Color(0xFF00D9B0),
-              fontFamily: 'monospace',
-              fontSize: 13,
-              backgroundColor: const Color(0xFF1E1E2E),
-            ),
-          ));
-          continue;
+        if (inCodeBlock) {
+          // 结束代码块
+          children.add(_buildCodeBlock(context, codeLines, codeLang));
+          codeLines.clear();
+          inCodeBlock = false;
+          codeLang = '';
         } else {
-          isCodeBlock.add(false);
-          spans.add(TextSpan(text: '\n'));
-          continue;
+          // 开始代码块
+          inCodeBlock = true;
+          codeLang = line.trimLeft().substring(3).trim();
         }
-      }
-
-      if (isCodeBlock.isNotEmpty && isCodeBlock.last) {
-        spans.add(TextSpan(
-          text: '$line\n',
-          style: TextStyle(
-            color: const Color(0xFFCDD6F4),
-            fontFamily: 'monospace',
-            fontSize: 13,
-            backgroundColor: const Color(0xFF1E1E2E),
-          ),
-        ));
         continue;
       }
 
-      // 行内解析：**粗壮** `行内代码`
-      _parseInline(line, spans, context);
-      spans.add(TextSpan(text: '\n'));
+      if (inCodeBlock) {
+        codeLines.add(line);
+        continue;
+      }
+
+      // 空行
+      if (line.trim().isEmpty) {
+        children.add(const SizedBox(height: 8));
+        continue;
+      }
+
+      // 普通行
+      children.add(_buildInlineText(context, line));
     }
 
-    return RichText(
-      text: TextSpan(
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: Theme.of(context).colorScheme.onSurface,
-          height: 1.5,
-        ),
-        children: spans,
+    // 未闭合的代码块
+    if (inCodeBlock && codeLines.isNotEmpty) {
+      children.add(_buildCodeBlock(context, codeLines, codeLang));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
+  Widget _buildCodeBlock(BuildContext context, List<String> lines, String lang) {
+    final code = lines.join('\n');
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E2E),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 语言标签 + 复制按钮
+          if (lang.isNotEmpty)
+            Row(
+              children: [
+                Text(lang, style: const TextStyle(color: Color(0xFF6C7086), fontSize: 11, fontFamily: 'monospace')),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('代码已复制'), duration: Duration(seconds: 1)),
+                    );
+                  },
+                  child: const Text('复制代码', style: TextStyle(color: Color(0xFF6C7086), fontSize: 11)),
+                ),
+              ],
+            ),
+          const SizedBox(height: 4),
+          // 代码内容
+          SelectableText(
+            code,
+            style: const TextStyle(color: Color(0xFFCDD6F4), fontFamily: 'monospace', fontSize: 13, height: 1.5),
+          ),
+        ],
       ),
     );
   }
 
-  void _parseInline(String line, List<TextSpan> spans, BuildContext context) {
-    final regex = RegExp(r'(\*\*(.+?)\*\*|`([^`]+)`|(\[.+?\]\(.+?\)))');
+  Widget _buildInlineText(BuildContext context, String line) {
+    final spans = <InlineSpan>[];
+    final regex = RegExp(r'(\*\*(.+?)\*\*|`([^`]+)`|\[(.+?)\]\((.+?)\)|https?://[^\s<]+)');
     int lastEnd = 0;
 
     for (final match in regex.allMatches(line)) {
-      // 普通文本
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: line.substring(lastEnd, match.start)));
       }
@@ -144,24 +204,41 @@ class MessageBubble extends StatelessWidget {
         ));
       } else if (match.group(3) != null) {
         // 行内代码
-        spans.add(TextSpan(
-          text: match.group(3),
-          style: TextStyle(
-            color: const Color(0xFF00D9B0),
-            fontFamily: 'monospace',
-            fontSize: 13,
-            backgroundColor: Theme.of(context).colorScheme.surface,
+        spans.add(WidgetSpan(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              match.group(3)!,
+              style: const TextStyle(color: Color(0xFF00D9B0), fontFamily: 'monospace', fontSize: 13),
+            ),
           ),
         ));
       } else if (match.group(4) != null) {
         // 链接 [text](url)
-        final linkText = match.group(0)!;
-        final textMatch = RegExp(r'\[(.+?)\]').firstMatch(linkText);
-        spans.add(TextSpan(
-          text: textMatch?.group(1) ?? linkText,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.primary,
-            decoration: TextDecoration.underline,
+        final url = match.group(5)!;
+        spans.add(WidgetSpan(
+          child: GestureDetector(
+            onTap: () => _openUrl(url),
+            child: Text(
+              match.group(4)!,
+              style: TextStyle(color: Theme.of(context).colorScheme.primary, decoration: TextDecoration.underline),
+            ),
+          ),
+        ));
+      } else {
+        // 裸 URL
+        final url = match.group(0)!;
+        spans.add(WidgetSpan(
+          child: GestureDetector(
+            onTap: () => _openUrl(url),
+            child: Text(
+              url,
+              style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 13, decoration: TextDecoration.underline),
+            ),
           ),
         ));
       }
@@ -172,39 +249,60 @@ class MessageBubble extends StatelessWidget {
     if (lastEnd < line.length) {
       spans.add(TextSpan(text: line.substring(lastEnd)));
     }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: RichText(
+        text: TextSpan(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurface, height: 1.5),
+          children: spans,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {}
+    }
   }
 
   Widget _buildToolResult(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 2),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3),
+      child: GestureDetector(
+        onLongPress: () {
+          Clipboard.setData(ClipboardData(text: message.content));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3)),
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.build_circle_outlined,
-              size: 14,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                '🔧 ${message.toolName ?? '工具'}: ${message.content.length > 100 ? '${message.content.substring(0, 100)}...' : message.content}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                  fontFamily: 'monospace',
-                  fontSize: 11,
+          child: Row(
+            children: [
+              Icon(Icons.build_circle_outlined, size: 14, color: Theme.of(context).colorScheme.secondary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '🔧 ${message.toolName ?? '工具'}: ${message.content.length > 100 ? '${message.content.substring(0, 100)}...' : message.content}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
