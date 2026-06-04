@@ -52,7 +52,7 @@ class MessageBubble extends StatelessWidget {
                         )
                       : _buildMarkdown(context, message.content),
                 ),
-                // 复制按钮 + token 消耗
+                // 复制按钮
                 Padding(
                   padding: const EdgeInsets.only(top: 2, right: 4),
                   child: Row(
@@ -73,7 +73,6 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
-
                     ],
                   ),
                 ),
@@ -113,13 +112,11 @@ class MessageBubble extends StatelessWidget {
     for (final line in lines) {
       if (line.trimLeft().startsWith('```')) {
         if (inCodeBlock) {
-          // 结束代码块
           children.add(_buildCodeBlock(context, codeLines, codeLang));
           codeLines.clear();
           inCodeBlock = false;
           codeLang = '';
         } else {
-          // 开始代码块
           inCodeBlock = true;
           codeLang = line.trimLeft().substring(3).trim();
         }
@@ -131,17 +128,14 @@ class MessageBubble extends StatelessWidget {
         continue;
       }
 
-      // 空行
       if (line.trim().isEmpty) {
         children.add(const SizedBox(height: 8));
         continue;
       }
 
-      // 普通行
       children.add(_buildInlineText(context, line));
     }
 
-    // 未闭合的代码块
     if (inCodeBlock && codeLines.isNotEmpty) {
       children.add(_buildCodeBlock(context, codeLines, codeLang));
     }
@@ -164,7 +158,6 @@ class MessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 语言标签 + 复制按钮
           if (lang.isNotEmpty)
             Row(
               children: [
@@ -182,7 +175,6 @@ class MessageBubble extends StatelessWidget {
               ],
             ),
           const SizedBox(height: 4),
-          // 代码内容
           SelectableText(
             code,
             style: const TextStyle(color: Color(0xFFCDD6F4), fontFamily: 'monospace', fontSize: 13, height: 1.5),
@@ -203,13 +195,11 @@ class MessageBubble extends StatelessWidget {
       }
 
       if (match.group(1)?.startsWith('**') == true) {
-        // 加粗
         spans.add(TextSpan(
           text: match.group(2),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ));
       } else if (match.group(3) != null) {
-        // 行内代码
         spans.add(WidgetSpan(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -224,7 +214,6 @@ class MessageBubble extends StatelessWidget {
           ),
         ));
       } else if (match.group(4) != null) {
-        // 链接 [text](url)
         final url = match.group(5)!;
         spans.add(WidgetSpan(
           child: GestureDetector(
@@ -236,7 +225,6 @@ class MessageBubble extends StatelessWidget {
           ),
         ));
       } else {
-        // 裸 URL
         final url = match.group(0)!;
         spans.add(WidgetSpan(
           child: GestureDetector(
