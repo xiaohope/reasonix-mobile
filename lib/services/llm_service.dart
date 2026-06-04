@@ -280,15 +280,15 @@ class LlmService {
     }
     // 尝试多个路径
     final urls = [
-      '\$_baseUrl/user/balance',
-      '\$_baseUrl/balance',
-      '\$_baseUrl/dashboard/billing/info',
+      '$_baseUrl/user/balance',
+      '$_baseUrl/balance',
+      '$_baseUrl/dashboard/billing/info',
     ];
     for (final url in urls) {
       try {
         final uri = Uri.parse(url);
         final response = await http.get(uri, headers: {
-          'Authorization': 'Bearer \$_apiKey',
+          'Authorization': 'Bearer $_apiKey',
           'Accept': 'application/json',
         });
         if (response.statusCode == 200) return jsonDecode(response.body);
