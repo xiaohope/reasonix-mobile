@@ -21,7 +21,11 @@ void main() async {
       providers: [
         ChangeNotifierProvider.value(value: settings),
         ChangeNotifierProvider(create: (_) => ProjectProvider()),
-        ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) {
+          final chat = ChatProvider();
+          chat.load();
+          return chat;
+        }),
         ChangeNotifierProvider(create: (_) => TerminalProvider()),
       ],
       child: const ReasonixMobileApp(),

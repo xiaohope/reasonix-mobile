@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/message.dart';
 import '../models/tool_call.dart';
 import '../models/usage_info.dart';
@@ -13,7 +16,6 @@ class ChatProvider extends ChangeNotifier {
   bool _isStreaming = false;
   bool _stopRequested = false;
 
-  // 累计用量
   int _totalPromptTokens = 0;
   int _totalCompletionTokens = 0;
   int _totalCacheHitTokens = 0;
@@ -22,6 +24,7 @@ class ChatProvider extends ChangeNotifier {
   LlmService? _llmService;
   ToolEngine? _toolEngine;
   StreamSubscription<String>? _streamSub;
+  File? _file;
 
   List<Message> get messages => List.unmodifiable(_messages);
   Message? get streamingMessage => _streamingMessage;
@@ -45,6 +48,69 @@ class ChatProvider extends ChangeNotifier {
     return n.toString();
   }
 
+  Future<void> _initFile() async {
+    if (_file != null) return;
+    final dir = await getApplicationDocumentsDirectory();
+    _file = File('${dir.path}/reasonix_chat.json');
+  }
+
+  /// 保存聊天记录到文件
+  Future<void> _save() async {
+    await _initFile();
+    try {
+      final data = {
+        'messages': _messages.where((m) => m.role != 'system').map((m) => {
+          'role': m.role,
+          'content': m.content,
+          if (m.toolCallId != null) 'tool_call_id': m.toolCallId,
+          if (m.toolName != null) 'tool_name': m.toolName,
+          if (m.toolCalls != null) 'tool_calls': m.toolCalls,
+          if (m.usage != null) 'usage': {
+            'prompt_tokens': m.usage!.promptTokens,
+            'completion_tokens': m.usage!.completionTokens,
+            'total_tokens': m.usage!.totalTokens,
+            'prompt_cache_hit_tokens': m.usage!.promptCacheHitTokens,
+          },
+        }).toList(),
+        'total_prompt_tokens': _totalPromptTokens,
+        'total_completion_tokens': _totalCompletionTokens,
+        'total_cache_hit_tokens': _totalCacheHitTokens,
+        'total_cost': _totalCost,
+      };
+      await _file!.writeAsString(jsonEncode(data));
+    } catch (_) {}
+  }
+
+  /// 加载聊天记录
+  Future<void> load() async {
+    await _initFile();
+    try {
+      if (!await _file!.exists()) return;
+      final json = jsonDecode(await _file!.readAsString()) as Map<String, dynamic>;
+      final msgs = json['messages'] as List<dynamic>? ?? [];
+      for (final m in msgs) {
+        final msg = m as Map<String, dynamic>;
+        UsageInfo? usage;
+        if (msg['usage'] is Map) {
+          usage = UsageInfo.fromJson(msg['usage'] as Map<String, dynamic>);
+        }
+        _messages.add(Message(
+          role: msg['role'] as String,
+          content: msg['content'] as String? ?? '',
+          toolCallId: msg['tool_call_id'] as String?,
+          toolName: msg['tool_name'] as String?,
+          toolCalls: (msg['tool_calls'] as List<dynamic>?)?.cast<Map<String, dynamic>>(),
+          usage: usage,
+        ));
+      }
+      _totalPromptTokens = json['total_prompt_tokens'] as int? ?? 0;
+      _totalCompletionTokens = json['total_completion_tokens'] as int? ?? 0;
+      _totalCacheHitTokens = json['total_cache_hit_tokens'] as int? ?? 0;
+      _totalCost = json['total_cost'] as double? ?? 0;
+    } catch (_) {}
+    notifyListeners();
+  }
+
   void initServices(LlmService llm, ToolEngine engine) {
     _llmService = llm;
     _toolEngine = engine;
@@ -65,6 +131,7 @@ class ChatProvider extends ChangeNotifier {
 
   void addMessage(Message msg) {
     _messages.add(msg);
+    _save();
     notifyListeners();
   }
 
@@ -72,9 +139,8 @@ class ChatProvider extends ChangeNotifier {
     if (_isProcessing || text.trim().isEmpty) return;
     if (_llmService == null || _toolEngine == null) return;
 
-    // 首次对话加入系统提示词
     if (_messages.isEmpty) {
-      _messages.add(Message(role: 'system', content: '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说“让我看看”。'));
+      _messages.add(Message(role: 'system', content: '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。'));
     }
 
     _messages.add(Message(role: 'user', content: text.trim()));
@@ -89,6 +155,7 @@ class ChatProvider extends ChangeNotifier {
       final firstResponse = await _llmService!.chatComplete(_messages);
       if (firstResponse.containsKey('error')) {
         _messages.add(Message(role: 'assistant', content: firstResponse['error'] as String));
+        _save();
         break;
       }
 
@@ -98,13 +165,11 @@ class ChatProvider extends ChangeNotifier {
       final msg = choice['message'] as Map<String, dynamic>?;
       if (msg == null) break;
 
-      // 累加用量
       if (firstResponse['usage'] is Map) {
         final u = firstResponse['usage'] as Map<String, dynamic>;
         _totalPromptTokens += u['prompt_tokens'] as int? ?? 0;
         _totalCompletionTokens += u['completion_tokens'] as int? ?? 0;
         _totalCacheHitTokens += u['prompt_cache_hit_tokens'] as int? ?? 0;
-        // 估算费用
         final input = (_totalPromptTokens - _totalCacheHitTokens).clamp(0, _totalPromptTokens) * 0.000001;
         final output = _totalCompletionTokens * 0.000002;
         final cached = _totalCacheHitTokens * 0.0000005;
@@ -115,10 +180,8 @@ class ChatProvider extends ChangeNotifier {
 
       if (toolCalls != null && toolCalls.isNotEmpty && !_stopRequested) {
         final assistantContent = msg['content'] as String? ?? '';
-        _messages.add(Message(
-          role: 'assistant', content: assistantContent,
-          toolCalls: toolCalls.cast<Map<String, dynamic>>(),
-        ));
+        _messages.add(Message(role: 'assistant', content: assistantContent, toolCalls: toolCalls.cast<Map<String, dynamic>>()));
+        _save();
         notifyListeners();
 
         for (final tc in toolCalls) {
@@ -131,6 +194,7 @@ class ChatProvider extends ChangeNotifier {
         final textContent = msg['content'] as String? ?? '';
         if (textContent.isNotEmpty) {
           _messages.add(Message(role: 'assistant', content: textContent));
+          _save();
           notifyListeners();
         }
         break;
@@ -144,6 +208,7 @@ class ChatProvider extends ChangeNotifier {
 
   void _addToolResult(ToolCall call, String result) {
     _messages.add(Message(role: 'tool', content: result, toolCallId: call.id, toolName: call.name));
+    _save();
   }
 
   void clearMessages() {
@@ -153,6 +218,7 @@ class ChatProvider extends ChangeNotifier {
     _totalCompletionTokens = 0;
     _totalCacheHitTokens = 0;
     _totalCost = 0;
+    _save();
     notifyListeners();
   }
 }
