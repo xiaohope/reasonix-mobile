@@ -1,6 +1,6 @@
 # reasonix_mobile
 
-A new Flutter project.
+Reasonix AI 编程助手 - 手机端 Flutter App
 
 ## Getting Started
 
