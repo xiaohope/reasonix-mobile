@@ -31,20 +31,34 @@ class FileService {
   Future<void> editFile(String path, String search, String replace) async {
     final content = await readFile(path);
     if (content.indexOf(search) == -1) throw Exception('SEARCH text not found in $path');
-    await File(_resolve(path)).writeAsString(content.replaceAll(search, replace));
+    await File(_resolve(path)).writeAsString(content.replaceFirst(search, replace));
   }
 
   List<FileNode> listDirectory(String path) {
     final dir = Directory(_resolve(path));
     if (!dir.existsSync()) return [];
     return dir.listSync()
-      .where((e) => !FileNode.isIgnored(e.uri.pathSegments.last))
-      .map(FileNode.fromEntity).toList()
+      .where((e) => !_isIgnored(e.uri.pathSegments.last))
+      .map(_toFileNode).toList()
       ..sort((a, b) {
         if (a.isDirectory && !b.isDirectory) return -1;
         if (!a.isDirectory && b.isDirectory) return 1;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
+  }
+
+  bool _isIgnored(String name) {
+    const ignored = ['.git', '.dart_tool', '.packages', '.pub-cache', 'node_modules', '.reasonix_memory.json'];
+    return ignored.contains(name) || name.startsWith('.');
+  }
+
+  FileNode _toFileNode(FileSystemEntity entity) {
+    final stat = entity.statSync();
+    return FileNode(
+      name: entity.uri.pathSegments.last,
+      path: entity.path,
+      isDirectory: entity is Directory,
+    );
   }
 
   List<Map<String, dynamic>> searchContent(String pattern, {String? path, bool caseSensitive = false, int context = 0}) {
@@ -60,7 +74,7 @@ class FileService {
     try {
       for (final entity in dir.listSync()) {
         final name = entity.uri.pathSegments.last;
-        if (FileNode.isIgnored(name)) continue;
+        if (_isIgnored(name)) continue;
         if (entity is File) _searchInFile(entity, regex, results, context);
         else if (entity is Directory) _grep(entity, regex, results, context);
       }
@@ -92,31 +106,33 @@ class FileService {
     try {
       for (final entity in dir.listSync()) {
         final name = entity.uri.pathSegments.last;
-        if (FileNode.isIgnored(name)) continue;
+        if (_isIgnored(name)) continue;
         if (name.toLowerCase().contains(pattern)) results.add(entity.path);
         if (entity is Directory) _walkFiles(entity, results, pattern);
       }
     } catch (_) {}
   }
 
-  Map<String, dynamic>? getFileInfo(String path) {
-    final file = File(_resolve(path));
-    if (!file.existsSync()) return null;
-    final stat = file.statSync();
-    return {'path': path, 'size': stat.size, 'modified': stat.modified.toIso8601String(), 'type': stat.type == FileSystemEntityType.directory ? 'directory' : 'file'};
-  }
-
   Future<void> deleteFile(String path) async {
-    final resolved = _resolve(path);
-    if (await File(resolved).exists()) await File(resolved).delete();
-    else if (await Directory(resolved).exists()) await Directory(resolved).delete(recursive: true);
+    final file = File(_resolve(path));
+    if (!await file.exists()) throw Exception('File not found: $path');
+    await file.delete();
   }
 
   Future<void> createDirectory(String path) async {
-    await Directory(_resolve(path)).create(recursive: true);
+    final dir = Directory(_resolve(path));
+    await dir.create(recursive: true);
   }
 
-  Future<void> moveFile(String from, String to) async {
-    await File(_resolve(from)).rename(_resolve(to));
+  Future<Map<String, dynamic>> getFileInfo(String path) async {
+    final file = File(_resolve(path));
+    if (!await file.exists()) throw Exception('File not found: $path');
+    final stat = await file.stat();
+    return {
+      'path': path,
+      'size': stat.size,
+      'modified': stat.modified.toIso8601String(),
+      'type': stat.type == FileSystemEntityType.directory ? 'directory' : 'file',
+    };
   }
 }
