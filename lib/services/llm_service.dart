@@ -278,11 +278,13 @@ class LlmService {
     if (!isConfigured) {
       return {'error': '请先配置 API Key'};
     }
-    // 尝试多个路径
+    // 从 _baseUrl 中提取域名（去掉 /v1 路径）
+    final base = Uri.parse(_baseUrl);
+    final domain = "${base.scheme}://${base.host}";
     final urls = [
-      '$_baseUrl/user/balance',
-      '$_baseUrl/balance',
-      '$_baseUrl/dashboard/billing/info',
+      "$domain/user/balance",
+      "$domain/balance",
+      "$domain/dashboard/billing/info",
     ];
     for (final url in urls) {
       try {
