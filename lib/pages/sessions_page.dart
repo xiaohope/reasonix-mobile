@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/chat_provider_v2.dart';
+import '../providers/chat_provider.dart';
 import 'package:flutter/services.dart';
 
 /// 会话管理页面 — 创建、切换、重命名、删除会话
