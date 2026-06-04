@@ -42,7 +42,7 @@ class ProjectPicker extends StatelessWidget {
   void _browseDirectory(BuildContext context, String path) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _DirectoryBrowser(
+        builder: (_) => DirectoryBrowser(
           initialPath: path,
           onSelected: (selectedPath) {
             Navigator.of(context).pop();
@@ -90,7 +90,7 @@ class ProjectPicker extends StatelessWidget {
 }
 
 /// 目录浏览器页面
-class _DirectoryBrowser extends StatefulWidget {
+class DirectoryBrowser extends StatefulWidget {
   final String initialPath;
   final void Function(String path) onSelected;
 
@@ -103,7 +103,7 @@ class _DirectoryBrowser extends StatefulWidget {
   State<_DirectoryBrowser> createState() => _DirectoryBrowserState();
 }
 
-class _DirectoryBrowserState extends State<_DirectoryBrowser> {
+class _DirectoryBrowserState extends State<DirectoryBrowser> {
   late String _currentPath;
   List<FileSystemEntity> _entries = [];
 

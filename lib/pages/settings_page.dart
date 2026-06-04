@@ -5,6 +5,7 @@ import '../providers/settings_provider.dart';
 import '../providers/project_provider.dart';
 import '../services/terminal_service.dart';
 import '../services/git_service.dart';
+import '../widgets/project_picker.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -256,36 +257,16 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _pickProject() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('项目路径'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '/storage/emulated/0/...',
-            prefixIcon: Icon(Icons.folder),
-          ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DirectoryBrowser(
+          initialPath: '/storage/emulated/0',
+          onSelected: (path) {
+            context.read<ProjectProvider>().openProject(path);
+            context.read<SettingsProvider>().setLastProjectPath(path);
+            Navigator.of(context).pop();
+          },
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final path = controller.text.trim();
-              if (path.isNotEmpty) {
-                context.read<ProjectProvider>().openProject(path);
-                context.read<SettingsProvider>().setLastProjectPath(path);
-                Navigator.of(ctx).pop();
-              }
-            },
-            child: const Text('确认'),
-          ),
-        ],
       ),
     );
   }
