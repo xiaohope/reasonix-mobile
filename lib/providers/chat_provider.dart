@@ -69,6 +69,11 @@ class ChatProvider extends ChangeNotifier {
     if (_isProcessing || text.trim().isEmpty) return;
     if (_llmService == null || _toolEngine == null) return;
 
+    // 首次对话加入系统提示词
+    if (_messages.isEmpty) {
+      _messages.add(Message(role: 'system', content: '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说“让我看看”。'));
+    }
+
     _messages.add(Message(role: 'user', content: text.trim()));
     _isProcessing = true;
     _stopRequested = false;
