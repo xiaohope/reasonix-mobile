@@ -66,11 +66,13 @@ class ChatProvider extends ChangeNotifier {
     final toolCalls = msg['tool_calls'] as List<dynamic>?;
 
     if (toolCalls != null && toolCalls.isNotEmpty) {
-      // 先添加 assistant 回复（含 tool_calls 但无文字内容）
+      // 添加 assistant 消息（必须包含 tool_calls 数据）
       final assistantContent = msg['content'] as String? ?? '';
-      if (assistantContent.isNotEmpty) {
-        _messages.add(Message(role: 'assistant', content: assistantContent));
-      }
+      _messages.add(Message(
+        role: 'assistant',
+        content: assistantContent,
+        toolCalls: toolCalls.cast<Map<String, dynamic>>(),
+      ));
       notifyListeners();
 
       // 逐个执行工具

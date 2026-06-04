@@ -4,6 +4,7 @@ class Message {
   final String content;
   final String? toolCallId; // 如果是 tool 结果，关联的 tool_call id
   final String? toolName;   // 如果是 tool 结果，工具名
+  final List<Map<String, dynamic>>? toolCalls; // assistant 消息中的工具调用
   final DateTime timestamp;
   final bool isStreaming;   // 正在流式输出
 
@@ -12,6 +13,7 @@ class Message {
     required this.content,
     this.toolCallId,
     this.toolName,
+    this.toolCalls,
     DateTime? timestamp,
     this.isStreaming = false,
   }) : timestamp = timestamp ?? DateTime.now();
@@ -21,6 +23,7 @@ class Message {
     String? content,
     String? toolCallId,
     String? toolName,
+    List<Map<String, dynamic>>? toolCalls,
     DateTime? timestamp,
     bool? isStreaming,
   }) {
@@ -29,29 +32,24 @@ class Message {
       content: content ?? this.content,
       toolCallId: toolCallId ?? this.toolCallId,
       toolName: toolName ?? this.toolName,
+      toolCalls: toolCalls ?? this.toolCalls,
       timestamp: timestamp ?? this.timestamp,
       isStreaming: isStreaming ?? this.isStreaming,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'role': role,
-    'content': content,
-    if (toolCallId != null) 'tool_call_id': toolCallId,
-    if (toolName != null) 'tool_name': toolName,
-  };
-
-  factory Message.fromJson(Map<String, dynamic> json) => Message(
-    role: json['role'] as String,
-    content: json['content'] as String? ?? '',
-    toolCallId: json['tool_call_id'] as String?,
-    toolName: json['tool_name'] as String?,
-  );
-
-  /// 用于 LLM API 请求
-  Map<String, dynamic> toApiMessage() => {
-    'role': role == 'tool' ? 'tool' : role,
-    'content': content,
-    if (toolCallId != null && role == 'tool') 'tool_call_id': toolCallId,
-  };
+  /// 用于 LLM API 请求（必须包含 tool_calls 才能接 tool 消息）
+  Map<String, dynamic> toApiMessage() {
+    final map = <String, dynamic>{
+      'role': role == 'tool' ? 'tool' : role,
+      'content': content,
+    };
+    if (toolCallId != null && role == 'tool') {
+      map['tool_call_id'] = toolCallId;
+    }
+    if (toolCalls != null && role == 'assistant') {
+      map['tool_calls'] = toolCalls;
+    }
+    return map;
+  }
 }
