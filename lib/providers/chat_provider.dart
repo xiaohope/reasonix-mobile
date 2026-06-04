@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/message.dart';
@@ -11,9 +12,11 @@ class ChatProvider extends ChangeNotifier {
   Message? _streamingMessage;
   bool _isProcessing = false;
   bool _isStreaming = false;
+  bool _stopRequested = false;
 
   LlmService? _llmService;
   ToolEngine? _toolEngine;
+  StreamSubscription<String>? _streamSub;
 
   List<Message> get messages => List.unmodifiable(_messages);
   Message? get streamingMessage => _streamingMessage;
@@ -25,113 +28,94 @@ class ChatProvider extends ChangeNotifier {
     _toolEngine = engine;
   }
 
+  /// 停止当前生成
+  void stop() {
+    _stopRequested = true;
+    _streamSub?.cancel();
+    if (_streamingMessage != null) {
+      final msg = _streamingMessage!;
+      _streamingMessage = null;
+      _messages.add(Message(role: 'assistant', content: msg.content));
+    }
+    _isProcessing = false;
+    _isStreaming = false;
+    notifyListeners();
+  }
+
   void addMessage(Message msg) {
     _messages.add(msg);
     notifyListeners();
   }
 
-  /// 发送消息 → LLM 回复 → 工具调用 → 执行 → 再回复（循环）
   Future<void> sendMessage(String text) async {
     if (_isProcessing || text.trim().isEmpty) return;
     if (_llmService == null || _toolEngine == null) return;
 
     _messages.add(Message(role: 'user', content: text.trim()));
     _isProcessing = true;
+    _stopRequested = false;
     notifyListeners();
 
-    // 先非流式请求，获取 tool_calls（如果有）
-    final firstResponse = await _llmService!.chatComplete(_messages);
-    if (firstResponse.containsKey('error')) {
-      _messages.add(Message(role: 'assistant', content: firstResponse['error'] as String));
-      _isProcessing = false;
-      notifyListeners();
-      return;
-    }
+    final maxTurns = 10;
+    for (int turn = 0; turn < maxTurns; turn++) {
+      if (_stopRequested) break;
 
-    final choice = firstResponse['choices']?[0] as Map<String, dynamic>?;
-    if (choice == null) {
-      _isProcessing = false;
-      notifyListeners();
-      return;
-    }
+      final firstResponse = await _llmService!.chatComplete(_messages);
+      if (firstResponse.containsKey('error')) {
+        _messages.add(Message(role: 'assistant', content: firstResponse['error'] as String));
+        break;
+      }
 
-    final msg = choice['message'] as Map<String, dynamic>?;
-    if (msg == null) {
-      _isProcessing = false;
-      notifyListeners();
-      return;
-    }
+      final choice = firstResponse['choices']?[0] as Map<String, dynamic>?;
+      if (choice == null) break;
 
-    // 处理 tool_calls
-    final toolCalls = msg['tool_calls'] as List<dynamic>?;
+      final msg = choice['message'] as Map<String, dynamic>?;
+      if (msg == null) break;
 
-    if (toolCalls != null && toolCalls.isNotEmpty) {
-      // 添加 assistant 消息（必须包含 tool_calls 数据）
-      final assistantContent = msg['content'] as String? ?? '';
-      _messages.add(Message(
-        role: 'assistant',
-        content: assistantContent,
-        toolCalls: toolCalls.cast<Map<String, dynamic>>(),
-      ));
-      notifyListeners();
+      final toolCalls = msg['tool_calls'] as List<dynamic>?;
 
-      // 逐个执行工具
-      for (final tc in toolCalls) {
-        final toolCall = ToolCall.fromJson(tc as Map<String, dynamic>);
-        final result = await _toolEngine!.execute(toolCall);
-
+      if (toolCalls != null && toolCalls.isNotEmpty && !_stopRequested) {
+        final assistantContent = msg['content'] as String? ?? '';
         _messages.add(Message(
-          role: 'tool',
-          content: result,
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
+          role: 'assistant',
+          content: assistantContent,
+          toolCalls: toolCalls.cast<Map<String, dynamic>>(),
         ));
         notifyListeners();
-      }
 
-      // 把工具结果发给 LLM，流式获取最终回复
-      _streamingMessage = Message(role: 'assistant', content: '', isStreaming: true);
-      notifyListeners();
-
-      final fullContent = StringBuffer();
-      await for (final chunk in _llmService!.chatStream(_messages)) {
-        fullContent.write(chunk);
-        _streamingMessage = _streamingMessage!.copyWith(content: fullContent.toString());
-        notifyListeners();
-      }
-
-      _streamingMessage = null;
-      _messages.add(Message(role: 'assistant', content: fullContent.toString()));
-      notifyListeners();
-    } else {
-      // 纯文字回复，流式显示
-      final textContent = msg['content'] as String? ?? '';
-      if (textContent.isNotEmpty) {
-        // 对于短回复直接显示，长回复流式展示
-        if (textContent.length < 100) {
-          _messages.add(Message(role: 'assistant', content: textContent));
-        } else {
-          _streamingMessage = Message(role: 'assistant', content: '', isStreaming: true);
-          notifyListeners();
-          // 模拟逐字输出
-          for (int i = 0; i < textContent.length; i += 10) {
-            final end = (i + 10).clamp(0, textContent.length);
-            _streamingMessage = _streamingMessage!.copyWith(content: textContent.substring(0, end));
-            notifyListeners();
-            await Future.delayed(const Duration(milliseconds: 5));
-          }
-          _streamingMessage = null;
-          _messages.add(Message(role: 'assistant', content: textContent));
+        for (final tc in toolCalls) {
+          if (_stopRequested) break;
+          final toolCall = ToolCall.fromJson(tc as Map<String, dynamic>);
+          _addToolResult(toolCall, await _toolEngine!.execute(toolCall));
         }
+        notifyListeners();
+      } else {
+        // 纯文字回复
+        final textContent = msg['content'] as String? ?? '';
+        if (textContent.isNotEmpty) {
+          _messages.add(Message(role: 'assistant', content: textContent));
+          notifyListeners();
+        }
+        break;
       }
-      notifyListeners();
     }
 
     _isProcessing = false;
+    _isStreaming = false;
     notifyListeners();
   }
 
+  void _addToolResult(ToolCall call, String result) {
+    _messages.add(Message(
+      role: 'tool',
+      content: result,
+      toolCallId: call.id,
+      toolName: call.name,
+    ));
+  }
+
   void clearMessages() {
+    stop();
     _messages.clear();
     notifyListeners();
   }

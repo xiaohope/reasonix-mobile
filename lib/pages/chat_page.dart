@@ -146,6 +146,26 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
 
+          // 停止按钮
+          Consumer<ChatProvider>(
+            builder: (context, chat, _) {
+              if (!chat.isProcessing) return const SizedBox.shrink();
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => chat.stop(),
+                    icon: const Icon(Icons.stop_circle, color: Colors.red),
+                    label: const Text('停止生成', style: TextStyle(color: Colors.red)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
           // 输入框
           ChatInput(
             onSend: _sendMessage,

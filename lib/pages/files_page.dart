@@ -22,9 +22,19 @@ class _FilesPageState extends State<FilesPage> {
   String _searchQuery = '';
   List<FileNode> _searchResults = [];
 
+  String? _lastProjectPath;
+
   @override
   Widget build(BuildContext context) {
     final project = context.watch<ProjectProvider>();
+
+    // 当项目路径变化时自动加载
+    if (project.hasProject && project.rootPath != _lastProjectPath) {
+      _lastProjectPath = project.rootPath;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadDirectory(project.rootPath);
+      });
+    }
 
     if (!project.hasProject) {
       return _buildNoProject(context);
