@@ -32,7 +32,10 @@ class ChatProvider extends ChangeNotifier {
     final parts = <String>[];
     if (_totalPromptTokens > 0) parts.add('⇧${_fmt(_totalPromptTokens)}');
     if (_totalCompletionTokens > 0) parts.add('⇩${_fmt(_totalCompletionTokens)}');
-    if (_totalCacheHitTokens > 0) parts.add('📦${_fmt(_totalCacheHitTokens)}');
+    if (_totalCacheHitTokens > 0) {
+      final pct = (_totalCacheHitTokens * 100 / _totalPromptTokens).toStringAsFixed(0);
+      parts.add('📦$pct%');
+    }
     if (_totalCost > 0) parts.add('¥${_totalCost.toStringAsFixed(4)}');
     return parts.isNotEmpty ? parts.join(' · ') : '';
   }
