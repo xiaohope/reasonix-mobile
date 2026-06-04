@@ -8,7 +8,7 @@ class SettingsProvider extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.dark;
   String _apiKey = '';
   String _apiBaseUrl = 'https://api.deepseek.com/v1';
-  String _apiModel = 'deepseek-chat';
+  String _apiModel = 'deepseek-v4-flash';
   String _lastProjectPath = '';
 
   ThemeMode get themeMode => _themeMode;
@@ -34,7 +34,7 @@ class SettingsProvider extends ChangeNotifier {
         final json = jsonDecode(await _file!.readAsString()) as Map<String, dynamic>;
         _apiKey = json['api_key'] as String? ?? '';
         _apiBaseUrl = json['api_base_url'] as String? ?? 'https://api.deepseek.com/v1';
-        _apiModel = json['api_model'] as String? ?? 'deepseek-chat';
+        _apiModel = json['api_model'] as String? ?? 'deepseek-v4-flash';
         _lastProjectPath = json['last_project_path'] as String? ?? '';
         final theme = json['theme_mode'] as String? ?? 'dark';
         _themeMode = theme == 'light' ? ThemeMode.light : ThemeMode.dark;

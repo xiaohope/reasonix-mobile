@@ -269,3 +269,27 @@ class LlmService {
     }
   }
 }
+
+
+  /// 查询账户余额
+  Future<Map<String, dynamic>> checkBalance() async {
+    if (!isConfigured) {
+      return {'error': '请先配置 API Key'};
+    }
+    try {
+      final uri = Uri.parse('\$_baseUrl/user/balance');
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer \$_apiKey'},
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      if (response.statusCode == 404) {
+        return {'error': '该 API 不支持余额查询'};
+      }
+      return {'error': '查询失败: \${response.statusCode}'};
+    } catch (e) {
+      return {'error': '连接错误: \$e'};
+    }
+  }
