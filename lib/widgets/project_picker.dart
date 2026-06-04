@@ -43,7 +43,7 @@ class ProjectPicker extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => DirectoryBrowser(
-          initialPath: path,
+          initialPath: path == '/' ? '/storage/emulated/0' : path,
           onSelected: (selectedPath) {
             Navigator.of(context).pop();
             onPicked(selectedPath);
@@ -114,19 +114,34 @@ class _DirectoryBrowserState extends State<DirectoryBrowser> {
     _loadDirectory();
   }
 
+  String? _error;
+
   void _loadDirectory() {
+    _error = null;
     final dir = Directory(_currentPath);
-    if (!dir.existsSync()) return;
-    setState(() {
-      _entries = dir.listSync()
-        ..sort((a, b) {
-          final aIsDir = a is Directory;
-          final bIsDir = b is Directory;
-          if (aIsDir && !bIsDir) return -1;
-          if (!aIsDir && bIsDir) return 1;
-          return a.path.compareTo(b.path);
-        });
-    });
+    try {
+      if (!dir.existsSync()) {
+        _error = '目录不存在';
+        setState(() {});
+        return;
+      }
+      setState(() {
+        _entries = dir.listSync()
+          ..sort((a, b) {
+            final aIsDir = a is Directory;
+            final bIsDir = b is Directory;
+            if (aIsDir && !bIsDir) return -1;
+            if (!aIsDir && bIsDir) return 1;
+            return a.path.compareTo(b.path);
+          });
+        if (_entries.isEmpty) {
+          _error = '(空目录)';
+        }
+      });
+    } catch (e) {
+      _error = '无法读取: $e';
+      setState(() {});
+    }
   }
 
   void _enterDirectory(String path) {
@@ -180,11 +195,24 @@ class _DirectoryBrowserState extends State<DirectoryBrowser> {
             ),
           ),
           // 文件列表
+          // 错误提示
+          if (_error != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
+              child: Row(
+                children: [
+                  Icon(Icons.warning, size: 16, color: Theme.of(context).colorScheme.error),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12))),
+                ],
+              ),
+            ),
           Expanded(
-            child: _entries.isEmpty
+            child: _entries.isEmpty && _error == null
                 ? Center(
                     child: Text(
-                      '(空目录)',
+                      '正在加载...',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
