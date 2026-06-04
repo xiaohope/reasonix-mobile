@@ -1,10 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../models/tool_call.dart';
 import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
-import '../services/file_service.dart';
-import '../services/terminal_service.dart';
 
 /// 聊天状态管理 — Reasonix 核心对话循环
 class ChatProvider extends ChangeNotifier {
@@ -13,7 +12,6 @@ class ChatProvider extends ChangeNotifier {
   bool _isProcessing = false;
   bool _isStreaming = false;
 
-  // 服务引用（由外部注入）
   LlmService? _llmService;
   ToolEngine? _toolEngine;
 
@@ -32,100 +30,103 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 发送用户消息 → LLM 回复 → 工具执行 → LLM 再回复（循环）
+  /// 发送消息 → LLM 回复 → 工具调用 → 执行 → 再回复（循环）
   Future<void> sendMessage(String text) async {
     if (_isProcessing || text.trim().isEmpty) return;
     if (_llmService == null || _toolEngine == null) return;
 
-    // 加用户消息
     _messages.add(Message(role: 'user', content: text.trim()));
     _isProcessing = true;
     notifyListeners();
 
-    final maxTurns = 10; // 防止无限工具循环
-    for (int turn = 0; turn < maxTurns; turn++) {
-      // 流式接收 LLM 回复
+    // 先非流式请求，获取 tool_calls（如果有）
+    final firstResponse = await _llmService!.chatComplete(_messages);
+    if (firstResponse.containsKey('error')) {
+      _messages.add(Message(role: 'assistant', content: firstResponse['error'] as String));
+      _isProcessing = false;
+      notifyListeners();
+      return;
+    }
+
+    final choice = firstResponse['choices']?[0] as Map<String, dynamic>?;
+    if (choice == null) {
+      _isProcessing = false;
+      notifyListeners();
+      return;
+    }
+
+    final msg = choice['message'] as Map<String, dynamic>?;
+    if (msg == null) {
+      _isProcessing = false;
+      notifyListeners();
+      return;
+    }
+
+    // 处理 tool_calls
+    final toolCalls = msg['tool_calls'] as List<dynamic>?;
+
+    if (toolCalls != null && toolCalls.isNotEmpty) {
+      // 先添加 assistant 回复（含 tool_calls 但无文字内容）
+      final assistantContent = msg['content'] as String? ?? '';
+      if (assistantContent.isNotEmpty) {
+        _messages.add(Message(role: 'assistant', content: assistantContent));
+      }
+      notifyListeners();
+
+      // 逐个执行工具
+      for (final tc in toolCalls) {
+        final toolCall = ToolCall.fromJson(tc as Map<String, dynamic>);
+        final result = await _toolEngine!.execute(toolCall);
+
+        _messages.add(Message(
+          role: 'tool',
+          content: result,
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+        ));
+        notifyListeners();
+      }
+
+      // 把工具结果发给 LLM，流式获取最终回复
       _streamingMessage = Message(role: 'assistant', content: '', isStreaming: true);
       notifyListeners();
 
       final fullContent = StringBuffer();
       await for (final chunk in _llmService!.chatStream(_messages)) {
         fullContent.write(chunk);
-        _streamingMessage = _streamingMessage!.copyWith(
-          content: fullContent.toString(),
-        );
+        _streamingMessage = _streamingMessage!.copyWith(content: fullContent.toString());
         notifyListeners();
       }
 
-      final assistantMsg = Message(
-        role: 'assistant',
-        content: fullContent.toString(),
-      );
       _streamingMessage = null;
-      _messages.add(assistantMsg);
+      _messages.add(Message(role: 'assistant', content: fullContent.toString()));
       notifyListeners();
-
-      // 检查是否有 tool_calls — 这里用简化方式：看返回内容
-      // 生产环境应该解析完整 JSON response
-      // 简单启发：检查是否包含工具名关键词
-      final content = fullContent.toString().toLowerCase();
-
-      // 尝试检测工具调用
-      final toolCall = _detectToolCall(content, fullContent.toString());
-
-      if (toolCall == null) break; // 纯文字回复，结束
-
-      // 执行工具
-      final result = await _toolEngine!.execute(toolCall);
-      _messages.add(Message(
-        role: 'tool',
-        content: result,
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-      ));
+    } else {
+      // 纯文字回复，流式显示
+      final textContent = msg['content'] as String? ?? '';
+      if (textContent.isNotEmpty) {
+        // 对于短回复直接显示，长回复流式展示
+        if (textContent.length < 100) {
+          _messages.add(Message(role: 'assistant', content: textContent));
+        } else {
+          _streamingMessage = Message(role: 'assistant', content: '', isStreaming: true);
+          notifyListeners();
+          // 模拟逐字输出
+          for (int i = 0; i < textContent.length; i += 10) {
+            final end = (i + 10).clamp(0, textContent.length);
+            _streamingMessage = _streamingMessage!.copyWith(content: textContent.substring(0, end));
+            notifyListeners();
+            await Future.delayed(const Duration(milliseconds: 5));
+          }
+          _streamingMessage = null;
+          _messages.add(Message(role: 'assistant', content: textContent));
+        }
+      }
       notifyListeners();
     }
 
     _isProcessing = false;
     notifyListeners();
-  }
-
-  /// 简单的工具调用检测
-  /// 真正的实现应该解析 LLM 返回的 tool_calls JSON
-  ToolCall? _detectToolCall(String lower, String original) {
-    // 从 Markdown 代码块中提取工具调用
-    // 格式: tool_name(path="...", ...) 或 JSON
-    final toolPatterns = [
-      (name: 'read_file', args: (String s) => _parseArgs(s, ['path'])),
-      (name: 'write_file', args: (String s) => _parseArgs(s, ['path', 'content'])),
-      (name: 'edit_file', args: (String s) => _parseArgs(s, ['path', 'search', 'replace'])),
-      (name: 'search_content', args: (String s) => _parseArgs(s, ['pattern'])),
-    ];
-
-    for (final t in toolPatterns) {
-      final regex = RegExp('${t.name}\\s*\\(([^)]+)\\)', caseSensitive: false);
-      final match = regex.firstMatch(original);
-      if (match != null) {
-        return ToolCall(
-          id: 'call_${DateTime.now().millisecondsSinceEpoch}',
-          name: t.name,
-          arguments: t.args(match.group(1) ?? ''),
-        );
-      }
-    }
-    return null;
-  }
-
-  Map<String, dynamic> _parseArgs(String argStr, List<String> keys) {
-    final result = <String, dynamic>{};
-    for (final key in keys) {
-      final regex = RegExp('$key\\s*=\\s*"([^"]*)"', caseSensitive: false);
-      final match = regex.firstMatch(argStr);
-      if (match != null) {
-        result[key] = match.group(1) ?? '';
-      }
-    }
-    return result;
   }
 
   void clearMessages() {
