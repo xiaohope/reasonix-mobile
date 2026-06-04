@@ -48,8 +48,8 @@ class TerminalService {
   static Future<bool> checkEnvironment() async {
     if (Platform.isIOS) return false;
     try {
-      final result = await Process.run('sh', ['-c', 'echo ok']);
-      return (result.stdout as String).trim() == 'ok';
+      final result = await Process.run('sh', ['-c', 'echo hello']);
+      return (result.stdout as String).trim() == 'hello';
     } catch (_) {
       return false;
     }
@@ -58,13 +58,17 @@ class TerminalService {
   /// 获取环境信息
   static Future<String> getEnvironmentInfo() async {
     final buf = StringBuffer();
-    buf.writeln('平台: ${Platform.operatingSystem}');
-    buf.writeln('版本: ${Platform.operatingSystemVersion}');
     try {
-      final result = await Process.run('sh', ['-c', r'echo "$SHELL"']);
-      buf.writeln('Shell: ${(result.stdout as String).trim()}');
-    } catch (_) {
-      buf.writeln('Shell: 不可用');
+      final osResult = await Process.run('sh', ['-c', 'uname -a']);
+      buf.writeln('OS: ${(osResult.stdout as String).trim()}');
+      final shellResult = await Process.run('sh', ['-c', 'echo $SHELL']);
+      if ((shellResult.stdout as String).trim().isNotEmpty) {
+        buf.writeln('Shell: ${(shellResult.stdout as String).trim()}');
+      }
+      final termuxResult = await Process.run('sh', ['-c', 'which termux-setup-storage 2>/dev/null && echo "Termux detected" || echo "no termux"']);
+      buf.writeln('Termux: ${(termuxResult.stdout as String).trim()}');
+    } catch (e) {
+      buf.writeln('环境检测失败: $e');
     }
     return buf.toString();
   }
@@ -72,6 +76,5 @@ class TerminalService {
   void dispose() {
     _process?.kill();
     _process = null;
-    _isRunning = false;
   }
 }
