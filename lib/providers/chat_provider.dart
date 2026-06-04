@@ -36,14 +36,14 @@ class ChatProvider extends ChangeNotifier {
 
   String get usageSummary {
     final parts = <String>[];
-    if (_totalPromptTokens > 0) parts.add('⇧${_fmt(_totalPromptTokens)}');
-    if (_totalCompletionTokens > 0) parts.add('⇩${_fmt(_totalCompletionTokens)}');
+    if (_totalPromptTokens > 0) parts.add('in:${_fmt(_totalPromptTokens)}');
+    if (_totalCompletionTokens > 0) parts.add('out:${_fmt(_totalCompletionTokens)}');
     if (_totalCacheHitTokens > 0) {
       final pct = (_totalCacheHitTokens * 100 / _totalPromptTokens).toStringAsFixed(0);
-      parts.add('������$pct%');
+      parts.add('cache:${pct}%');
     }
     if (_totalCost > 0) parts.add('¥${_totalCost.toStringAsFixed(4)}');
-    return parts.isNotEmpty ? parts.join(' · ') : '';
+    return parts.isNotEmpty ? parts.join(' | ') : '';
   }
   static String _fmt(int n) {
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
@@ -81,7 +81,110 @@ class ChatProvider extends ChangeNotifier {
     _fallbackFile = File('${dir.path}/reasonix_chat.json');
   }
 
+  // ========== 会话管理 ==========
+
+  String? _currentSessionId;
+  final Map<String, Map<String, dynamic>> _sessions = {};
+
+  String? get currentSessionId => _currentSessionId;
+  List<Map<String, dynamic>> get sessions => _sessions.values.toList()
+    ..sort((a, b) => (b['updated_at'] as String).compareTo(a['updated_at'] as String));
+
+  String createSession({String? name}) {
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final session = {
+      'id': id,
+      'name': name ?? '对话 ${_sessions.length + 1}',
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    _sessions[id] = session;
+    _currentSessionId = id;
+    _messages.clear();
+    _totalPromptTokens = 0;
+    _totalCompletionTokens = 0;
+    _totalCacheHitTokens = 0;
+    _totalCost = 0;
+    _saveSessionMeta();
+    _save();
+    notifyListeners();
+    return id;
+  }
+
+  Future<void> switchSession(String sessionId) async {
+    if (!_sessions.containsKey(sessionId)) return;
+    await _save();
+    _currentSessionId = sessionId;
+    _sessions[sessionId]!['updated_at'] = DateTime.now().toIso8601String();
+    _saveSessionMeta();
+    await load();
+    notifyListeners();
+  }
+
+  Future<void> deleteSession(String sessionId) async {
+    if (!_sessions.containsKey(sessionId)) return;
+    _sessions.remove(sessionId);
+    try {
+      final sessionFile = await _getSessionFile(sessionId);
+      if (await sessionFile.exists()) await sessionFile.delete();
+    } catch (_) {}
+    _saveSessionMeta();
+    if (_currentSessionId == sessionId) {
+      if (_sessions.isEmpty) {
+        createSession(name: '新对话');
+      } else {
+        await switchSession(_sessions.keys.last);
+      }
+    }
+    notifyListeners();
+  }
+
+  void renameSession(String sessionId, String newName) {
+    if (_sessions.containsKey(sessionId)) {
+      _sessions[sessionId]!['name'] = newName;
+      _saveSessionMeta();
+      notifyListeners();
+    }
+  }
+
+  Future<File> _getSessionFile(String sessionId) async {
+    final base = await _getMemoryFile();
+    final parent = base.parent;
+    return File('${parent.path}/.reasonix_session_$sessionId.json');
+  }
+
+  Future<void> _saveSessionMeta() async {
+    try {
+      final base = await _getMemoryFile();
+      final metaFile = File('${base.parent.path}/.reasonix_sessions.json');
+      await metaFile.parent.create(recursive: true);
+      await metaFile.writeAsString(jsonEncode({
+        'sessions': _sessions,
+        'current_session_id': _currentSessionId,
+      }));
+    } catch (_) {}
+  }
+
+  Future<void> _loadSessionMeta() async {
+    try {
+      final base = await _getMemoryFile();
+      final metaFile = File('${base.parent.path}/.reasonix_sessions.json');
+      if (await metaFile.exists()) {
+        final data = jsonDecode(await metaFile.readAsString()) as Map<String, dynamic>;
+        if (data['sessions'] is Map) {
+          _sessions.clear();
+          (data['sessions'] as Map).forEach((k, v) => _sessions[k.toString()] = v as Map<String, dynamic>);
+        }
+        _currentSessionId = data['current_session_id'] as String?;
+      }
+    } catch (_) {}
+    if (_sessions.isEmpty) createSession(name: '默认对话');
+  }
+
+  // ========== 记忆加载/保存 ==========
+
   Future<void> load() async {
+    await _loadSessionMeta();
     final file = await _getMemoryFile();
     try {
       if (await file.exists()) {
@@ -276,4 +379,85 @@ class ChatProvider extends ChangeNotifier {
     _save();
     notifyListeners();
   }
+
+  // ========== 导出/导入 ==========
+
+  Future<String> exportChatAsJson() async {
+    final file = await _getMemoryFile();
+    if (await file.exists()) return await file.readAsString();
+    return jsonEncode({
+      'version': kMemoryFileVersion,
+      'last_updated': DateTime.now().toIso8601String(),
+      'messages': _messages.map((m) => {
+        'role': m.role, 'content': m.content,
+        if (m.toolCallId != null) 'tool_call_id': m.toolCallId,
+        if (m.toolName != null) 'tool_name': m.toolName,
+        if (m.toolCalls != null) 'tool_calls': m.toolCalls,
+      }).toList(),
+      'usage': {
+        'total_prompt_tokens': _totalPromptTokens,
+        'total_completion_tokens': _totalCompletionTokens,
+        'total_cache_hit_tokens': _totalCacheHitTokens,
+        'total_cost': _totalCost,
+      },
+    });
+  }
+
+  Future<String> exportChatAsText() async {
+    final buf = StringBuffer();
+    buf.writeln('=== Reasonix 对话导出 ===');
+    buf.writeln('导出时间: ${DateTime.now().toIso8601String()}');
+    if (_currentSessionId != null && _sessions.containsKey(_currentSessionId)) {
+      buf.writeln('会话: ${_sessions[_currentSessionId]!['name']}');
+    }
+    buf.writeln('Token用量: 输入=${_fmt(_totalPromptTokens)}, 输出=${_fmt(_totalCompletionTokens)}');
+    buf.writeln('=== 对话内容 ===\n');
+    for (final m in _messages) {
+      switch (m.role) {
+        case 'system': break;
+        case 'user':
+          buf.writeln('👤 用户:\n${m.content}\n');
+          break;
+        case 'assistant':
+          if (m.toolCalls != null && m.toolCalls!.isNotEmpty) {
+            for (final tc in m.toolCalls!) {
+              buf.writeln('🔧 调用工具: ${tc['function']?['name'] ?? 'unknown'}');
+            }
+          } else if (m.content.isNotEmpty) {
+            buf.writeln('🤖 Reasonix:\n${m.content}\n');
+          }
+          break;
+        case 'tool':
+          buf.writeln('⚙️ 工具结果 (${m.toolName ?? ''}):');
+          buf.writeln('${m.content.length > 200 ? "${m.content.substring(0, 200)}..." : m.content}\n');
+          break;
+      }
+    }
+    buf.writeln('=== 导出结束 ===');
+    return buf.toString();
+  }
+
+  Future<bool> importChatFromJson(String jsonStr) async {
+    try {
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      if (!data.containsKey('messages')) return false;
+      createSession(name: '导入的对话');
+      _parseAndLoad(jsonStr);
+      await _save();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('导入失败: $e');
+      return false;
+    }
+  }
+
+  Map<String, dynamic> get usageStats => {
+    'prompt_tokens': _totalPromptTokens,
+    'completion_tokens': _totalCompletionTokens,
+    'cache_hit_tokens': _totalCacheHitTokens,
+    'total_cost': _totalCost,
+    'message_count': _messages.length,
+    'session_count': _sessions.length,
+  };
 }
