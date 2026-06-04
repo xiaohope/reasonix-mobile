@@ -47,26 +47,16 @@ class GitService {
   Future<String> diffStaged() => _git(['diff', '--staged']);
   Future<String> branch() => _git(['branch', '-a']);
   Future<String> remote() => _git(['remote', '-v']);
-
-  Future<String> add(String path) => _git(['add', path]);
+  Future<String> add({List<String>? files}) async {
+    if (files != null && files.isNotEmpty) {
+      return await _git(['add', ...files]);
+    }
+    return await _git(['add', '.']);
+  }
   Future<String> commit(String message) => _git(['commit', '-m', message]);
   Future<String> push() => _git(['push']);
   Future<String> pull() => _git(['pull']);
-
-  Future<String> showFile(String path) => _git(['show', 'HEAD:$path']);
-
-  Future<String> init() async {
-    if (_projectRoot == null) return '错误: 未设置项目根';
-    try {
-      await Process.run('git', ['init'], workingDirectory: _projectRoot);
-      return 'Git 仓库已初始化';
-    } catch (e) {
-      return '初始化失败: $e';
-    }
-  }
-
-  /// 当前分支名
-  Future<String> currentBranch() async {
-    return await _git(['rev-parse', '--abbrev-ref', 'HEAD']);
-  }
+  Future<String> checkout(String branch) => _git(['checkout', branch]);
+  Future<String> stash() => _git(['stash']);
+  Future<String> stashPop() => _git(['stash', 'pop']);
 }
