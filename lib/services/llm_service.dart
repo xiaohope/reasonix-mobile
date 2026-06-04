@@ -278,14 +278,24 @@ class LlmService {
     if (!isConfigured) {
       return {'error': '请先配置 API Key'};
     }
-    try {
-      final uri = Uri.parse('\$_baseUrl/user/balance');
-      final response = await http.get(uri, headers: {'Authorization': 'Bearer \$_apiKey'});
-      if (response.statusCode == 200) return jsonDecode(response.body);
-      if (response.statusCode == 404) return {'error': '该 API 不支持余额查询'};
-      return {'error': '查询失败: \${response.statusCode}'};
-    } catch (e) {
-      return {'error': '连接错误: \$e'};
+    // 尝试多个路径
+    final urls = [
+      '\$_baseUrl/user/balance',
+      '\$_baseUrl/balance',
+      '\$_baseUrl/dashboard/billing/info',
+    ];
+    for (final url in urls) {
+      try {
+        final uri = Uri.parse(url);
+        final response = await http.get(uri, headers: {
+          'Authorization': 'Bearer \$_apiKey',
+          'Accept': 'application/json',
+        });
+        if (response.statusCode == 200) return jsonDecode(response.body);
+      } catch (_) {
+        continue;
+      }
     }
+    return {'error': '无法连接余额接口，请确认 API Key 正确'};
   }
 }

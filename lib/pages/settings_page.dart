@@ -296,26 +296,19 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _openAppSettings() async {
-    // 打开系统设置，用户手动找到应用 -> 所有文件访问权限
-    final pkg = 'com.reasonix.reasonix_mobile';
-    try {
-      await launchUrl(Uri.parse('android.settings.APPLICATION_DETAILS_SETTINGS?package=$pkg'));
-    } catch (e) {
-      try {
-        await launchUrl(Uri.parse('android.settings.MANAGE_APPLICATIONS_SETTINGS'));
-      } catch (_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请手动打开系统设置 -> 应用 -> Reasonix -> 权限 -> 打开所有文件访问权限')),
-        );
-      }
-    }
+    // 直接显示操作步骤，因为 Flutter launchUrl 无法直接打开 Android 权限设置页
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        duration: Duration(seconds: 5),
+        content: Text('请手动操作: 系统设置 → 应用 → Reasonix → 权限 → 所有文件访问权限 → 允许'),
+      ),
+    );
   }
 
   Future<void> _checkBalance() async {
     final settings = context.read<SettingsProvider>();
     final llm = LlmService();
-    // 余额接口在根路径，不是 /v1
-    final balanceBaseUrl = settings.apiBaseUrl.replaceAll('/v1', '');
+    final balanceBaseUrl = settings.apiBaseUrl;
     llm.configure(apiKey: settings.apiKey, baseUrl: balanceBaseUrl, model: settings.apiModel);
 
     showDialog(
