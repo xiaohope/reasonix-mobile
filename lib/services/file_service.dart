@@ -1,15 +1,14 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:convert';
 import '../models/file_node.dart';
 
-/// 文件读写搜索服务 — Reasonix 核心能力的本地实现
-class FileService {
+/// 鏂囦欢璇诲啓鎼滅储鏈嶅姟 鈥?Reasonix 鏍稿績鑳藉姏鐨勬湰鍦板疄鐜?class FileService {
   String? _projectRoot;
 
   set projectRoot(String? path) => _projectRoot = path;
   String? get projectRoot => _projectRoot;
 
-  // ── Resolve path ──
+  // 鈹€鈹€ Resolve path 鈹€鈹€
   String _resolve(String path) {
     if (path.startsWith('/') && _projectRoot != null) {
       return '$_projectRoot$path';
@@ -20,7 +19,7 @@ class FileService {
     return path;
   }
 
-  // ── Read ──
+  // 鈹€鈹€ Read 鈹€鈹€
   Future<String> readFile(String path) async {
     final file = File(_resolve(path));
     if (!await file.exists()) {
@@ -37,14 +36,14 @@ class FileService {
     return file.readAsStringSync();
   }
 
-  // ── Write ──
+  // 鈹€鈹€ Write 鈹€鈹€
   Future<void> writeFile(String path, String content) async {
     final file = File(_resolve(path));
     await file.parent.create(recursive: true);
     await file.writeAsString(content);
   }
 
-  // ── Edit (SEARCH/REPLACE) ──
+  // 鈹€鈹€ Edit (SEARCH/REPLACE) 鈹€鈹€
   Future<void> editFile(String path, String search, String replace) async {
     final content = await readFile(path);
     final idx = content.indexOf(search);
@@ -55,7 +54,7 @@ class FileService {
     await File(_resolve(path)).writeAsString(newContent);
   }
 
-  // ── List directory ──
+  // 鈹€鈹€ List directory 鈹€鈹€
   List<FileNode> listDirectory(String path) {
     final dir = Directory(_resolve(path));
     if (!dir.existsSync()) return [];
@@ -67,7 +66,7 @@ class FileService {
       });
   }
 
-  /// 递归列出目录树（用于文件浏览器）
+  /// 閫掑綊鍒楀嚭鐩綍鏍戯紙鐢ㄤ簬鏂囦欢娴忚鍣級
   List<FileNode> listTree(String path, {int maxDepth = 3}) {
     final result = <FileNode>[];
     _walk(Directory(_resolve(path)), result, 0, maxDepth);
@@ -89,7 +88,7 @@ class FileService {
     } catch (_) {}
   }
 
-  // ── Search content (grep) ──
+  // 鈹€鈹€ Search content (grep) 鈹€鈹€
   List<Map<String, dynamic>> searchContent(
     String pattern, {
     String? path,
@@ -146,7 +145,7 @@ class FileService {
     } catch (_) {}
   }
 
-  // ── Search files by name ──
+  // 鈹€鈹€ Search files by name 鈹€鈹€
   List<String> searchFiles(String pattern) {
     final root = _projectRoot;
     if (root == null) return [];
@@ -171,7 +170,7 @@ class FileService {
     } catch (_) {}
   }
 
-  // ── File info ──
+  // 鈹€鈹€ File info 鈹€鈹€
   Map<String, dynamic>? getFileInfo(String path) {
     final file = File(_resolve(path));
     if (!file.existsSync()) return null;
@@ -184,7 +183,7 @@ class FileService {
     };
   }
 
-  // ── Delete ──
+  // 鈹€鈹€ Delete 鈹€鈹€
   Future<void> deleteFile(String path) async {
     final resolved = _resolve(path);
     final file = File(resolved);
@@ -196,13 +195,14 @@ class FileService {
     }
   }
 
-  // ── Create directory ──
+  // 鈹€鈹€ Create directory 鈹€鈹€
   Future<void> createDirectory(String path) async {
     await Directory(_resolve(path)).create(recursive: true);
   }
 
-  // ── Move / rename ──
+  // 鈹€鈹€ Move / rename 鈹€鈹€
   Future<void> moveFile(String from, String to) async {
     await File(_resolve(from)).rename(_resolve(to));
   }
 }
+
