@@ -1,12 +1,15 @@
+import '../models/usage_info.dart';
+
 /// 聊天消息
 class Message {
-  final String role;    // 'user' | 'assistant' | 'system' | 'tool'
+  final String role;
   final String content;
-  final String? toolCallId; // 如果是 tool 结果，关联的 tool_call id
-  final String? toolName;   // 如果是 tool 结果，工具名
-  final List<Map<String, dynamic>>? toolCalls; // assistant 消息中的工具调用
+  final String? toolCallId;
+  final String? toolName;
+  final List<Map<String, dynamic>>? toolCalls;
+  final UsageInfo? usage;
   final DateTime timestamp;
-  final bool isStreaming;   // 正在流式输出
+  final bool isStreaming;
 
   Message({
     required this.role,
@@ -14,6 +17,7 @@ class Message {
     this.toolCallId,
     this.toolName,
     this.toolCalls,
+    this.usage,
     DateTime? timestamp,
     this.isStreaming = false,
   }) : timestamp = timestamp ?? DateTime.now();
@@ -24,6 +28,7 @@ class Message {
     String? toolCallId,
     String? toolName,
     List<Map<String, dynamic>>? toolCalls,
+    UsageInfo? usage,
     DateTime? timestamp,
     bool? isStreaming,
   }) {
@@ -33,12 +38,13 @@ class Message {
       toolCallId: toolCallId ?? this.toolCallId,
       toolName: toolName ?? this.toolName,
       toolCalls: toolCalls ?? this.toolCalls,
+      usage: usage ?? this.usage,
       timestamp: timestamp ?? this.timestamp,
       isStreaming: isStreaming ?? this.isStreaming,
     );
   }
 
-  /// 用于 LLM API 请求（必须包含 tool_calls 才能接 tool 消息）
+  /// 用于 LLM API 请求
   Map<String, dynamic> toApiMessage() {
     final map = <String, dynamic>{
       'role': role == 'tool' ? 'tool' : role,

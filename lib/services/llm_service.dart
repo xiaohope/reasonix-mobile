@@ -263,6 +263,10 @@ class LlmService {
       }
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
+      // 确保 usage 字段存在
+      if (json['usage'] is Map) {
+        json['_has_usage'] = true;
+      }
       return json;
     } catch (e) {
       return {'error': '连接错误: $e'};

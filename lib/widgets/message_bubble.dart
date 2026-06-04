@@ -69,6 +69,18 @@ class MessageBubble extends StatelessWidget {
                         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
                     ),
+                    // Token 消耗显示
+                    if (message.usage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Text(
+                          message.usage!.summary,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          ),
+                        ),
+                      ),
                   ),
                 ),
               ],

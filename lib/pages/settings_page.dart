@@ -5,6 +5,7 @@ import '../providers/settings_provider.dart';
 import '../providers/project_provider.dart';
 import '../services/terminal_service.dart';
 import '../services/git_service.dart';
+import '../services/llm_service.dart';
 import '../widgets/project_picker.dart';
 
 /// 设置页面
@@ -252,6 +253,56 @@ class _SettingsPageState extends State<SettingsPage> {
           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+
+  Future<void> _checkBalance() async {
+    final settings = context.read<SettingsProvider>();
+    final llm = LlmService();
+    llm.configure(apiKey: settings.apiKey, baseUrl: settings.apiBaseUrl, model: settings.apiModel);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('查询余额'),
+        content: const SizedBox(
+          width: 60, height: 60,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+    );
+
+    final result = await llm.checkBalance();
+    if (!mounted) return;
+    Navigator.of(context).pop(); // 关闭加载弹窗
+
+    if (result.containsKey('error')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${result['error']}')),
+      );
+      return;
+    }
+
+    // 显示余额信息
+    final balanceInfo = StringBuffer();
+    if (result['balance_infos'] is List) {
+      for (final b in result['balance_infos'] as List) {
+        final m = b as Map<String, dynamic>;
+        balanceInfo.writeln('${m['total_balance'] ?? '?'} ${m['currency'] ?? '元'}');
+      }
+    } else {
+      balanceInfo.writeln('余额: ${result['balance'] ?? '未知'}');
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('账户余额'),
+        content: Text(balanceInfo.toString()),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('确定')),
+        ],
       ),
     );
   }

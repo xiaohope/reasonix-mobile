@@ -93,7 +93,8 @@ class ChatProvider extends ChangeNotifier {
         // 纯文字回复
         final textContent = msg['content'] as String? ?? '';
         if (textContent.isNotEmpty) {
-          _messages.add(Message(role: 'assistant', content: textContent));
+          final responseMsg = Message(role: 'assistant', content: textContent, usage: usage);
+          _messages.add(responseMsg);
           notifyListeners();
         }
         break;
