@@ -7,6 +7,7 @@ import '../services/terminal_service.dart';
 import '../services/git_service.dart';
 import '../services/llm_service.dart';
 import '../widgets/project_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -255,6 +256,16 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _openAppSettings() async {
+    try {
+      await launchUrl(Uri.parse('android.settings.MANAGE_APPLICATIONS_SETTINGS'));
+    } catch (_) {
+      try {
+        await launchUrl(Uri.parse('android.settings.APPLICATION_DETAILS_SETTINGS'));
+      } catch (_) {}
+    }
   }
 
   Future<void> _checkBalance() async {
