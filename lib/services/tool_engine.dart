@@ -111,7 +111,7 @@ ${results.take(30).join('
     return await terminalService.executeCommand(command);
   }
 
-  String _getFileInfo(ToolCall call) {
+  Future<String> _getFileInfo(ToolCall call) async {
     final path = call.arguments['path'] as String? ?? '';
     if (path.isEmpty) return '错误: 缺少 path 参数';
     final info = await fileService.getFileInfo(path);
