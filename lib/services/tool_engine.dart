@@ -89,7 +89,9 @@ class ToolEngine {
     if (pattern.isEmpty) return '错误: 缺少 pattern 参数';
     final results = fileService.searchFiles(pattern);
     if (results.isEmpty) return '未找到文件: $pattern';
-    return '找到 ${results.length} 个文件:\n${results.take(30).join('\n')}';
+    return '找到 ${results.length} 个文件:
+${results.take(30).join('
+')}';
   }
 
   String _listDirectory(ToolCall call) {
@@ -99,7 +101,8 @@ class ToolEngine {
     return entries.map((e) {
       final icon = e.isDirectory ? '📁' : '📄';
       return '$icon ${e.name}';
-    }).join('\n');
+    }).join('
+');
   }
 
   Future<String> _runCommand(ToolCall call) async {
@@ -111,9 +114,12 @@ class ToolEngine {
   String _getFileInfo(ToolCall call) {
     final path = call.arguments['path'] as String? ?? '';
     if (path.isEmpty) return '错误: 缺少 path 参数';
-    final info = fileService.getFileInfo(path);
+    final info = await fileService.getFileInfo(path);
     if (info == null) return '路径不存在: $path';
-    return '路径: ${info['path']}\n类型: ${info['type']}\n大小: ${info['size']} bytes\n修改时间: ${info['modified']}';
+    return '路径: ${info['path']}
+类型: ${info['type']}
+大小: ${info['size']} bytes
+修改时间: ${info['modified']}';
   }
 
   Future<String> _deleteFile(ToolCall call) async {
