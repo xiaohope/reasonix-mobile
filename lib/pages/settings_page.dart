@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
 import '../providers/project_provider.dart';
 import '../services/terminal_service.dart';
@@ -255,38 +256,13 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _pickProject() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('项目路径'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '/storage/emulated/0/...',
-            prefixIcon: Icon(Icons.folder),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final path = controller.text.trim();
-              if (path.isNotEmpty && ctx.mounted) {
-                context.read<ProjectProvider>().openProject(path);
-                context.read<SettingsProvider>().setLastProjectPath(path);
-                Navigator.of(ctx).pop();
-              }
-            },
-            child: const Text('确认'),
-          ),
-        ],
-      ),
+  Future<void> _pickProject() async {
+    final result = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: '选择项目目录',
     );
+    if (result != null && mounted) {
+      context.read<ProjectProvider>().openProject(result);
+      context.read<SettingsProvider>().setLastProjectPath(result);
+    }
   }
 }
