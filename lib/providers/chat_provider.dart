@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../models/tool_call.dart';
+import '../models/usage_info.dart';
 import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
 
-/// 聊天状态管理 — Reasonix 核心对话循环
 class ChatProvider extends ChangeNotifier {
   final List<Message> _messages = [];
   Message? _streamingMessage;
@@ -28,7 +28,6 @@ class ChatProvider extends ChangeNotifier {
     _toolEngine = engine;
   }
 
-  /// 停止当前生成
   void stop() {
     _stopRequested = true;
     _streamSub?.cancel();
@@ -72,6 +71,12 @@ class ChatProvider extends ChangeNotifier {
       final msg = choice['message'] as Map<String, dynamic>?;
       if (msg == null) break;
 
+      // 解析 usage
+      UsageInfo? usage;
+      if (firstResponse['usage'] is Map) {
+        usage = UsageInfo.fromJson(firstResponse['usage'] as Map<String, dynamic>);
+      }
+
       final toolCalls = msg['tool_calls'] as List<dynamic>?;
 
       if (toolCalls != null && toolCalls.isNotEmpty && !_stopRequested) {
@@ -80,6 +85,7 @@ class ChatProvider extends ChangeNotifier {
           role: 'assistant',
           content: assistantContent,
           toolCalls: toolCalls.cast<Map<String, dynamic>>(),
+          usage: usage,
         ));
         notifyListeners();
 
@@ -90,11 +96,9 @@ class ChatProvider extends ChangeNotifier {
         }
         notifyListeners();
       } else {
-        // 纯文字回复
         final textContent = msg['content'] as String? ?? '';
         if (textContent.isNotEmpty) {
-          final responseMsg = Message(role: 'assistant', content: textContent, usage: usage);
-          _messages.add(responseMsg);
+          _messages.add(Message(role: 'assistant', content: textContent, usage: usage));
           notifyListeners();
         }
         break;

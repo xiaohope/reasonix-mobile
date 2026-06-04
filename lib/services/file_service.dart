@@ -9,29 +9,22 @@ class FileService {
   String? get projectRoot => _projectRoot;
 
   String _resolve(String path) {
-    if (path.startsWith('/')) {
-      return path;
-    }
-    if (_projectRoot != null) {
-      return '\$_projectRoot/\$path';
-    }
-    return path;
+    if (_projectRoot == null) return path;
+    // 如果是项目根路径本身，直接返回
+    if (path == _projectRoot) return _projectRoot!;
+    // 空路径或 / = 项目根
+    if (path.isEmpty || path == '/') return _projectRoot!;
+    // 去掉开头的 /，拼接到项目根
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    return '$_projectRoot/$cleanPath';
   }
 
   Future<String> readFile(String path) async {
     final file = File(_resolve(path));
     if (!await file.exists()) {
-      throw Exception('File not found: \$path');
+      throw Exception('File not found: $path');
     }
     return await file.readAsString();
-  }
-
-  String readFileSync(String path) {
-    final file = File(_resolve(path));
-    if (!file.existsSync()) {
-      throw Exception('File not found: \$path');
-    }
-    return file.readAsStringSync();
   }
 
   Future<void> writeFile(String path, String content) async {
@@ -44,7 +37,7 @@ class FileService {
     final content = await readFile(path);
     final idx = content.indexOf(search);
     if (idx == -1) {
-      throw Exception('SEARCH text not found in \$path');
+      throw Exception('SEARCH text not found in $path');
     }
     final newContent = content.replaceFirst(search, replace);
     await File(_resolve(path)).writeAsString(newContent);
@@ -102,8 +95,7 @@ class FileService {
     final root = _projectRoot;
     if (root == null) return [];
     final results = <String>[];
-    final lowerPattern = pattern.toLowerCase();
-    _walkFiles(Directory(root), results, lowerPattern);
+    _walkFiles(Directory(root), results, pattern.toLowerCase());
     return results;
   }
 

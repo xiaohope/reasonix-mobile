@@ -52,35 +52,39 @@ class MessageBubble extends StatelessWidget {
                         )
                       : _buildMarkdown(context, message.content),
                 ),
-                // 复制按钮
+                // 复制按钮 + token 消耗
                 Padding(
                   padding: const EdgeInsets.only(top: 2, right: 4),
-                  child: GestureDetector(
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: message.content));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
-                      );
-                    },
-                    child: Text(
-                      '复制',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    // Token 消耗显示
-                    if (message.usage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: message.content));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
+                          );
+                        },
                         child: Text(
-                          message.usage!.summary,
+                          '复制',
                           style: TextStyle(
-                            fontSize: 10,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                           ),
                         ),
                       ),
+                      if (message.usage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 12),
+                          child: Text(
+                            message.usage!.summary,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
