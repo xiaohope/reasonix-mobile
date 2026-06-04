@@ -160,7 +160,6 @@ class _ChatPageState extends State<ChatPage> {
           Expanded(
             child: Consumer<ChatProvider>(
               builder: (context, chat, _) {
-                // 新消息自动滚到底部
                 WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
                 if (chat.messages.isEmpty && chat.streamingMessage == null) {
                   return _buildEmptyState(context);
