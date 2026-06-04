@@ -219,24 +219,19 @@ class LlmService {
               if (delta != null && delta['content'] is String) {
                 yield delta['content'] as String;
               }
-              // tool_calls come in the delta too
-              if (delta != null && delta['tool_calls'] != null) {
-                // We'll handle tool_calls from the non-streaming final message
-                // For now just pass through text content
-              }
             } catch (_) {}
           }
         }
       }
     } catch (e) {
-      yield '连接错误: $e';
+      yield '网络请求失败: $e';
     }
   }
 
-  /// 非流式请求（用于 tool_call 后续请求）
+  /// 非流式调用（支持 tool_call 返回）
   Future<Map<String, dynamic>> chatComplete(List<Message> messages) async {
     if (!isConfigured) {
-      return {'error': '请先配置 API Key'};
+      return {'error': '请先在设置中配置 API Key'};
     }
 
     final uri = Uri.parse('$_baseUrl/chat/completions');
@@ -263,22 +258,20 @@ class LlmService {
       }
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      // 确保 usage 字段存在
       if (json['usage'] is Map) {
         json['_has_usage'] = true;
       }
       return json;
     } catch (e) {
-      return {'error': '连接错误: $e'};
+      return {'error': '网络请求失败: $e'};
     }
   }
 
-  /// 查询账户余额
+  /// 查询余额
   Future<Map<String, dynamic>> checkBalance() async {
     if (!isConfigured) {
-      return {'error': '请先配置 API Key'};
+      return {'error': '请先在设置中配置 API Key'};
     }
-    // 从 _baseUrl 中提取域名（去掉 /v1 路径）
     final base = Uri.parse(_baseUrl);
     final domain = "${base.scheme}://${base.host}";
     final urls = [
@@ -298,6 +291,6 @@ class LlmService {
         continue;
       }
     }
-    return {'error': '无法连接余额接口，请确认 API Key 正确'};
+    return {'error': '无法查询余额，请检查 API Key 是否正确'};
   }
 }
