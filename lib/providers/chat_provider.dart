@@ -59,7 +59,7 @@ class ChatProvider extends ChangeNotifier {
     await _initFile();
     try {
       final data = {
-        'messages': _messages.where((m) => m.role != 'system').map((m) => {
+        'messages': _messages.map((m) => {
           'role': m.role,
           'content': m.content,
           if (m.toolCallId != null) 'tool_call_id': m.toolCallId,
@@ -107,8 +107,35 @@ class ChatProvider extends ChangeNotifier {
       _totalCompletionTokens = json['total_completion_tokens'] as int? ?? 0;
       _totalCacheHitTokens = json['total_cache_hit_tokens'] as int? ?? 0;
       _totalCost = json['total_cost'] as double? ?? 0;
+
+      // 清理不完整的 tool_calls（assistant 的 tool_calls 必须被 tool 响应配对）
+      _fixIncompleteToolCalls();
     } catch (_) {}
     notifyListeners();
+  }
+
+  /// 移除未被 tool 响应配对的 assistant tool_calls 消息
+  void _fixIncompleteToolCalls() {
+    // 先收集所有 tool 消息的 tool_call_id
+    final respondedIds = <String>{};
+    for (final m in _messages) {
+      if (m.role == 'tool' && m.toolCallId != null) {
+        respondedIds.add(m.toolCallId!);
+      }
+    }
+
+    // 倒序遍历，移除缺少对应 tool 响应的 assistant 消息
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      final m = _messages[i];
+      if (m.role == 'assistant' && m.toolCalls != null && m.toolCalls!.isNotEmpty) {
+        final allResponded = m.toolCalls!.every(
+          (tc) => respondedIds.contains(tc['id'] as String?),
+        );
+        if (!allResponded) {
+          _messages.removeAt(i);
+        }
+      }
+    }
   }
 
   void initServices(LlmService llm, ToolEngine engine) {
@@ -139,7 +166,7 @@ class ChatProvider extends ChangeNotifier {
     if (_isProcessing || text.trim().isEmpty) return;
     if (_llmService == null || _toolEngine == null) return;
 
-    if (_messages.isEmpty) {
+    if (!_messages.any((m) => m.role == 'system')) {
       _messages.add(Message(role: 'system', content: '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。'));
     }
 
@@ -181,7 +208,6 @@ class ChatProvider extends ChangeNotifier {
       if (toolCalls != null && toolCalls.isNotEmpty && !_stopRequested) {
         final assistantContent = msg['content'] as String? ?? '';
         _messages.add(Message(role: 'assistant', content: assistantContent, toolCalls: toolCalls.cast<Map<String, dynamic>>()));
-        _save();
         notifyListeners();
 
         for (final tc in toolCalls) {
@@ -189,6 +215,7 @@ class ChatProvider extends ChangeNotifier {
           final toolCall = ToolCall.fromJson(tc as Map<String, dynamic>);
           _addToolResult(toolCall, await _toolEngine!.execute(toolCall));
         }
+        _save();
         notifyListeners();
       } else {
         final textContent = msg['content'] as String? ?? '';

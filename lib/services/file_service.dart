@@ -39,14 +39,16 @@ class FileService {
     if (idx == -1) {
       throw Exception('SEARCH text not found in $path');
     }
-    final newContent = content.replaceFirst(search, replace);
+    final newContent = content.replaceAll(search, replace);
     await File(_resolve(path)).writeAsString(newContent);
   }
 
   List<FileNode> listDirectory(String path) {
     final dir = Directory(_resolve(path));
     if (!dir.existsSync()) return [];
-    return dir.listSync().map(FileNode.fromEntity).toList()
+    return dir.listSync()
+      .where((e) => !FileNode.isIgnored(e.uri.pathSegments.last))
+      .map(FileNode.fromEntity).toList()
       ..sort((a, b) {
         if (a.isDirectory && !b.isDirectory) return -1;
         if (!a.isDirectory && b.isDirectory) return 1;
