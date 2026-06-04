@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/project_provider.dart';
+import '../providers/chat_provider.dart';
 import '../services/terminal_service.dart';
 import '../services/git_service.dart';
 import '../services/llm_service.dart';
@@ -141,7 +143,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                   ],
-                  // 最近项目历史
                   if (settings.lastProjectPath.isNotEmpty && !project.hasProject)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
@@ -230,7 +231,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // ── 权限 ──
+          // ── 文件权限 ──
           _sectionTitle(context, '文件权限'),
           Card(
             child: Padding(
@@ -267,12 +268,125 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
+          // ── 记忆管理 ──
+          _sectionTitle(context, '记忆管理'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Consumer<ChatProvider>(
+                builder: (context, chat, _) {
+                  final stats = chat.usageStats;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('用量统计', style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      )),
+                      const SizedBox(height: 8),
+                      _statRow(Icons.input, '输入 Tokens', '${stats['prompt_tokens']}'),
+                      _statRow(Icons.output, '输出 Tokens', '${stats['completion_tokens']}'),
+                      _statRow(Icons.attach_money, '预估费用',
+                          '\$${(stats['total_cost'] as double).toStringAsFixed(4)}'),
+                      _statRow(Icons.message, '消息数', '${stats['message_count']}'),
+                      _statRow(Icons.history, '会话数', '${stats['session_count']}'),
+                      if (chat.projectMemoryPath != null) ...[
+                        const SizedBox(height: 8),
+                        _statRow(Icons.folder, '记忆文件',
+                            chat.projectMemoryPath!.split('/').last),
+                      ],
+                      const SizedBox(height: 12),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.file_download_outlined, size: 18),
+                              label: const Text('导出 JSON', style: TextStyle(fontSize: 12)),
+                              onPressed: () async {
+                                final json = await chat.exportChatAsJson();
+                                await Clipboard.setData(ClipboardData(text: json));
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('✅ JSON 已复制到剪贴板')),
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.text_snippet_outlined, size: 18),
+                              label: const Text('导出文本', style: TextStyle(fontSize: 12)),
+                              onPressed: () async {
+                                final text = await chat.exportChatAsText();
+                                await Clipboard.setData(ClipboardData(text: text));
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('✅ 文本已复制到剪贴板')),
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.file_upload_outlined, size: 18),
+                              label: const Text('导入', style: TextStyle(fontSize: 12)),
+                              onPressed: () => _importChat(context),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.delete_sweep, size: 18),
+                              label: const Text('清空对话', style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('清空对话'),
+                                    content: const Text('确定清空当前对话？'),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+                                      FilledButton(
+                                        style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                                        onPressed: () {
+                                          context.read<ChatProvider>().clearMessages();
+                                          Navigator.pop(ctx);
+                                        },
+                                        child: const Text('清空'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // ── 关于 ──
           _sectionTitle(context, '关于'),
           Card(
             child: ListTile(
               title: const Text('Reasonix Mobile'),
-              subtitle: const Text('v0.1.0 · 手机端 AI 编程助手'),
+              subtitle: const Text('v0.2.0 · 手机端 AI 编程助手'),
               leading: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF)),
             ),
           ),
@@ -295,8 +409,58 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _statRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 14,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(label, style: const TextStyle(fontSize: 12)),
+          ),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  void _importChat(BuildContext context) {
+    final c = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('导入对话'),
+        content: TextField(
+          controller: c, maxLines: 6,
+          decoration: const InputDecoration(
+            hintText: '粘贴 JSON...',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.all(12),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(
+            onPressed: () async {
+              if (c.text.trim().isEmpty) return;
+              final ok = await context.read<ChatProvider>().importChatFromJson(c.text.trim());
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ok ? '✅ 导入成功' : '❌ 失败，请检查 JSON 格式')),
+                );
+              }
+            },
+            child: const Text('导入'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openAppSettings() async {
-    // 直接显示操作步骤，因为 Flutter launchUrl 无法直接打开 Android 权限设置页
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         duration: Duration(seconds: 5),
@@ -324,7 +488,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     final result = await llm.checkBalance();
     if (!mounted) return;
-    Navigator.of(context).pop(); // 关闭加载弹窗
+    Navigator.of(context).pop();
 
     if (result.containsKey('error')) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -333,7 +497,6 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    // 显示余额信息
     final balanceInfo = StringBuffer();
     if (result['balance_infos'] is List) {
       for (final b in result['balance_infos'] as List) {
