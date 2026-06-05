@@ -351,7 +351,8 @@ class ChatProvider extends ChangeNotifier {
         notifyListeners();
         for (final tc in toolCalls) {
           if (_stopRequested) break;
-          _addToolResult(ToolCall.fromJson(tc as Map<String, dynamic>), await _toolEngine!.execute(ToolCall.fromJson(tc as Map<String, dynamic>)));
+          final toolCall = ToolCall.fromJson(tc as Map<String, dynamic>);
+          _addToolResult(toolCall, await _toolEngine!.execute(toolCall));
         }
         _save(); notifyListeners();
       } else {

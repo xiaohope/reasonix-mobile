@@ -27,14 +27,11 @@ class TerminalService {
 
       final out = (result.stdout as String).trim();
       final err = (result.stderr as String).trim();
-      _lastOutput = out + (err.isNotEmpty ? '
-$err' : '');
+      _lastOutput = out + (err.isNotEmpty ? '\n$err' : '');
       return _lastOutput;
     } catch (e) {
-      final msg = '命令执行失败: $e
-'
-          '提示: Android 上需要安装 Termux。
-'
+      final msg = '命令执行失败: $e\n'
+          '提示: Android 上需要安装 Termux。\n'
           'iOS 上此功能不可用。';
       _lastOutput = msg;
       return msg;
