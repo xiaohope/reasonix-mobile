@@ -358,55 +358,76 @@ class ChatProvider extends ChangeNotifier {
   Future<void> sendMessage(String text) async {
     if (_isProcessing || text.trim().isEmpty) return;
     if (_llmService == null || _toolEngine == null) return;
+
+    // 动态构建 system prompt，包含项目路径信息
+    final projectPath = _projectProvider?.rootPath ?? '';
+    final systemPrompt = projectPath.isNotEmpty
+        ? '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。\n\n当前项目根目录: $projectPath\n所有文件操作都基于此目录，使用相对路径即可。'
+        : '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。';
+
     if (!_messages.any((m) => m.role == 'system')) {
-      _messages.add(Message(role: 'system', content: '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。'));
+      _messages.add(Message(role: 'system', content: systemPrompt));
+    } else {
+      // 更新已有的 system 消息（项目路径可能变了）
+      final idx = _messages.indexWhere((m) => m.role == 'system');
+      if (idx >= 0) {
+        _messages[idx] = Message(role: 'system', content: systemPrompt);
+      }
     }
     _messages.add(Message(role: 'user', content: text.trim()));
     _isProcessing = true;
     _stopRequested = false;
     notifyListeners();
-    final maxTurns = 10;
-    for (int turn = 0; turn < maxTurns; turn++) {
-      if (_stopRequested) break;
-      final firstResponse = await _llmService!.chatComplete(_messages);
-      if (firstResponse.containsKey('error')) {
-        _messages.add(Message(role: 'assistant', content: firstResponse['error'] as String));
-        _save(); break;
-      }
-      final choice = firstResponse['choices']?[0] as Map<String, dynamic>?;
-      if (choice == null) break;
-      final msg = choice['message'] as Map<String, dynamic>?;
-      if (msg == null) break;
-      if (firstResponse['usage'] is Map) {
-        final u = firstResponse['usage'] as Map<String, dynamic>;
-        _totalPromptTokens += u['prompt_tokens'] as int? ?? 0;
-        _totalCompletionTokens += u['completion_tokens'] as int? ?? 0;
-        _totalCacheHitTokens += u['prompt_cache_hit_tokens'] as int? ?? 0;
-        _totalCost = (_totalPromptTokens - _totalCacheHitTokens).clamp(0, _totalPromptTokens) * 0.000001 + _totalCompletionTokens * 0.000002 + _totalCacheHitTokens * 0.0000005;
-      }
-      final toolCalls = msg['tool_calls'] as List<dynamic>?;
-      if (toolCalls != null && toolCalls.isNotEmpty && !_stopRequested) {
-        _messages.add(Message(role: 'assistant', content: msg['content'] as String? ?? '', toolCalls: toolCalls.cast<Map<String, dynamic>>()));
-        notifyListeners();
-        for (final tc in toolCalls) {
-          if (_stopRequested) break;
-          final toolCall = ToolCall.fromJson(tc as Map<String, dynamic>);
-          _addToolResult(toolCall, await _toolEngine!.execute(toolCall));
+    try {
+      final maxTurns = 10;
+      for (int turn = 0; turn < maxTurns; turn++) {
+        if (_stopRequested) break;
+        final firstResponse = await _llmService!.chatComplete(_messages);
+        if (firstResponse.containsKey('error')) {
+          _messages.add(Message(role: 'assistant', content: firstResponse['error'] as String));
+          _save(); break;
         }
-        _save(); notifyListeners();
-      } else {
-        final textContent = msg['content'] as String? ?? '';
-        if (textContent.isNotEmpty) {
-          _messages.add(Message(role: 'assistant', content: textContent));
+        final choice = firstResponse['choices']?[0] as Map<String, dynamic>?;
+        if (choice == null) break;
+        final msg = choice['message'] as Map<String, dynamic>?;
+        if (msg == null) break;
+        if (firstResponse['usage'] is Map) {
+          final u = firstResponse['usage'] as Map<String, dynamic>;
+          _totalPromptTokens += u['prompt_tokens'] as int? ?? 0;
+          _totalCompletionTokens += u['completion_tokens'] as int? ?? 0;
+          _totalCacheHitTokens += u['prompt_cache_hit_tokens'] as int? ?? 0;
+          _totalCost = (_totalPromptTokens - _totalCacheHitTokens).clamp(0, _totalPromptTokens) * 0.000001 + _totalCompletionTokens * 0.000002 + _totalCacheHitTokens * 0.0000005;
+        }
+        final toolCalls = msg['tool_calls'] as List<dynamic>?;
+        if (toolCalls != null && toolCalls.isNotEmpty && !_stopRequested) {
+          _messages.add(Message(role: 'assistant', content: msg['content'] as String? ?? '', toolCalls: toolCalls.cast<Map<String, dynamic>>()));
+          notifyListeners();
+          for (final tc in toolCalls) {
+            if (_stopRequested) break;
+            final toolCall = ToolCall.fromJson(tc as Map<String, dynamic>);
+            _addToolResult(toolCall, await _toolEngine!.execute(toolCall));
+          }
           _save(); notifyListeners();
+        } else {
+          final textContent = msg['content'] as String? ?? '';
+          if (textContent.isNotEmpty) {
+            _messages.add(Message(role: 'assistant', content: textContent));
+            _save(); notifyListeners();
+          }
+          break;
         }
-        break;
       }
+      _fixIncompleteToolCalls();
+    } catch (e) {
+      // 异常时也要保留已有内容
+      _messages.add(Message(role: 'assistant', content: '执行出错: $e'));
+      _fixIncompleteToolCalls();
+      _save();
+    } finally {
+      _isProcessing = false; _isStreaming = false;
+      _save();
+      notifyListeners();
     }
-    _fixIncompleteToolCalls();
-    _isProcessing = false; _isStreaming = false;
-    _save();
-    notifyListeners();
   }
 
   void _addToolResult(ToolCall call, String result) {
