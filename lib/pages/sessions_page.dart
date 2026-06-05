@@ -25,7 +25,7 @@ class _SessionsPageState extends State<SessionsPage> {
             tooltip: '新建对话',
             onPressed: () {
               chatProvider.createSession(name: '新对话 ${chatProvider.sessions.length + 1}');
-              Navigator.of(context).pop();
+              chatProvider.onSwitchToChat?.call();
             },
           ),
           PopupMenuButton(
@@ -102,7 +102,7 @@ class _SessionsPageState extends State<SessionsPage> {
                     onTap: () async {
                       if (!isCurrent) {
                         await chatProvider.switchSession(session['id'] as String);
-                        if (context.mounted) Navigator.of(context).pop();
+                        chatProvider.onSwitchToChat?.call();
                       }
                     },
                     onLongPress: () => _showSessionMenu(context, chatProvider, session),
@@ -139,7 +139,7 @@ class _SessionsPageState extends State<SessionsPage> {
                 onTap: () async {
                   Navigator.of(ctx).pop();
                   await chatProvider.switchSession(id);
-                  if (context.mounted) Navigator.of(context).pop();
+                  chatProvider.onSwitchToChat?.call();
                 },
               ),
             ListTile(
@@ -280,7 +280,7 @@ class _SessionsPageState extends State<SessionsPage> {
                     content: Text(success ? '✅ 导入成功' : '❌ 导入失败，请检查 JSON 格式'),
                   ),
                 );
-                if (success && context.mounted) Navigator.of(context).pop();
+                if (success) chatProvider.onSwitchToChat?.call();
               }
             },
             child: const Text('导入'),

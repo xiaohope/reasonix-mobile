@@ -29,6 +29,9 @@ class ChatProvider extends ChangeNotifier {
   StreamSubscription<String>? _streamSub;
   File? _fallbackFile;
 
+  /// 切换到聊天 Tab 的回调（由 AppShell 设置）
+  VoidCallback? onSwitchToChat;
+
   List<Message> get messages => List.unmodifiable(_messages);
   Message? get streamingMessage => _streamingMessage;
   bool get isProcessing => _isProcessing;
