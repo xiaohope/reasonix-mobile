@@ -56,7 +56,7 @@ class FileService {
     final stat = entity.statSync();
     return FileNode(
       name: entity.uri.pathSegments.last,
-      path: entity.path,
+      path: _toRelativePath(entity.path),
       isDirectory: entity is Directory,
     );
   }
@@ -88,10 +88,20 @@ class FileService {
       for (int i = 0; i < lines.length && hitCount < 30; i++) {
         if (regex.hasMatch(lines[i])) {
           hitCount++;
-          results.add({'path': file.path, 'line': i + 1, 'text': lines[i]});
+          // 返回相对路径
+          final relativePath = _toRelativePath(file.path);
+          results.add({'path': relativePath, 'line': i + 1, 'text': lines[i]});
         }
       }
     } catch (_) {}
+  }
+
+  /// 将绝对路径转为相对于项目根的路径
+  String _toRelativePath(String absolutePath) {
+    if (_projectRoot != null && absolutePath.startsWith(_projectRoot!)) {
+      return absolutePath.substring(_projectRoot!.length);
+    }
+    return absolutePath;
   }
 
   List<String> searchFiles(String pattern) {
@@ -107,7 +117,7 @@ class FileService {
       for (final entity in dir.listSync()) {
         final name = entity.uri.pathSegments.last;
         if (_isIgnored(name)) continue;
-        if (name.toLowerCase().contains(pattern)) results.add(entity.path);
+        if (name.toLowerCase().contains(pattern)) results.add(_toRelativePath(entity.path));
         if (entity is Directory) _walkFiles(entity, results, pattern);
       }
     } catch (_) {}
