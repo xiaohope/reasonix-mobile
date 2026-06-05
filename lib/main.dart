@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'theme.dart';
 import 'pages/chat_page.dart';
 import 'pages/terminal_page.dart';
-import 'pages/files_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/sessions_page.dart';
 import 'providers/chat_provider.dart';
@@ -61,7 +60,6 @@ class _AppShellState extends State<AppShell> {
     const ChatPage(),
     const SessionsPage(),
     const TerminalPage(),
-    const FilesPage(),
     const SettingsPage(),
   ];
 
@@ -77,7 +75,6 @@ class _AppShellState extends State<AppShell> {
           BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), activeIcon: Icon(Icons.chat_bubble), label: '聊天'),
           BottomNavigationBarItem(icon: Icon(Icons.history), activeIcon: Icon(Icons.history), label: '对话'),
           BottomNavigationBarItem(icon: Icon(Icons.terminal_outlined), activeIcon: Icon(Icons.terminal), label: '终端'),
-          BottomNavigationBarItem(icon: Icon(Icons.folder_outlined), activeIcon: Icon(Icons.folder), label: '文件'),
           BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: '设置'),
         ],
       ),

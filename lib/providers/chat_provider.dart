@@ -153,6 +153,15 @@ class ChatProvider extends ChangeNotifier {
     return File('${parent.path}/.reasonix_session_$sessionId.json');
   }
 
+  /// 获取当前 session 对应的文件
+  Future<File> _getCurrentSessionFile() async {
+    if (_currentSessionId != null) {
+      return _getSessionFile(_currentSessionId!);
+    }
+    // 没有 session 时用默认文件
+    return _getMemoryFile();
+  }
+
   Future<void> _saveSessionMeta() async {
     try {
       final base = await _getMemoryFile();
@@ -185,7 +194,8 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> load() async {
     await _loadSessionMeta();
-    final file = await _getMemoryFile();
+    // 根据当前 session 读取对应的文件
+    final file = await _getCurrentSessionFile();
     try {
       if (await file.exists()) {
         final raw = await file.readAsString();
@@ -194,6 +204,7 @@ class ChatProvider extends ChangeNotifier {
         return;
       }
     } catch (_) {}
+    // 没有当前 session 文件，尝试从旧格式迁移
     if (_projectProvider != null && _projectProvider!.hasProject) {
       await _initFallbackFile();
       if (_fallbackFile != null && await _fallbackFile!.exists()) {
@@ -269,7 +280,7 @@ class ChatProvider extends ChangeNotifier {
   }
 
   Future<void> _save() async {
-    final file = await _getMemoryFile();
+    final file = await _getCurrentSessionFile();
     try {
       final data = {
         'version': kMemoryFileVersion,
@@ -384,7 +395,7 @@ class ChatProvider extends ChangeNotifier {
   // ========== 导出/导入 ==========
 
   Future<String> exportChatAsJson() async {
-    final file = await _getMemoryFile();
+    final file = await _getCurrentSessionFile();
     if (await file.exists()) return await file.readAsString();
     return jsonEncode({
       'version': kMemoryFileVersion,
