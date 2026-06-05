@@ -19,6 +19,9 @@ void main() async {
   final chatProvider = ChatProvider();
   // 请求存储权限
   await _requestPermissions();
+  // 初始化会话 — 加载上次保存的对话
+  chatProvider.initProjectProvider(projectProvider);
+  await chatProvider.init();
   runApp(
     MultiProvider(
       providers: [

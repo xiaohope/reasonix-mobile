@@ -10,8 +10,7 @@ import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
 import 'project_provider.dart';
 
-const String kMemoryFileName = '.reasonix_memory.json';
-const int kMemoryFileVersion = 1;
+const String kMemoryFileVersion = 2;
 
 class ChatProvider extends ChangeNotifier {
   final List<Message> _messages = [];
@@ -27,7 +26,9 @@ class ChatProvider extends ChangeNotifier {
   ToolEngine? _toolEngine;
   ProjectProvider? _projectProvider;
   StreamSubscription<String>? _streamSub;
-  File? _fallbackFile;
+
+  /// App 数据目录（所有 session 数据的根目录）
+  Directory? _dataDir;
 
   /// 切换到聊天 Tab 的回调（由 AppShell 设置）
   VoidCallback? onSwitchToChat;
@@ -53,24 +54,12 @@ class ChatProvider extends ChangeNotifier {
     return n.toString();
   }
 
-  Future<File> _getMemoryFile() async {
-    if (_projectProvider != null && _projectProvider!.hasProject) {
-      final projectPath = _projectProvider!.memoryFilePath;
-      if (projectPath != null) return File(projectPath);
-    }
-    if (_fallbackFile == null) {
-      final dir = await getApplicationDocumentsDirectory();
-      _fallbackFile = File('${dir.path}/reasonix_chat.json');
-    }
-    return _fallbackFile!;
-  }
-
   bool get isUsingProjectMemory => _projectProvider != null && _projectProvider!.hasProject;
   String? get projectMemoryPath => _projectProvider?.memoryFilePath;
 
   void initProjectProvider(ProjectProvider provider) {
     _projectProvider = provider;
-    provider.onProjectOpened = () { load(); };
+    provider.onProjectOpened = () { _onProjectChanged(); };
   }
 
   void initServices(LlmService llm, ToolEngine engine) {
@@ -78,10 +67,17 @@ class ChatProvider extends ChangeNotifier {
     _toolEngine = engine;
   }
 
-  Future<void> _initFallbackFile() async {
-    if (_fallbackFile != null) return;
-    final dir = await getApplicationDocumentsDirectory();
-    _fallbackFile = File('${dir.path}/reasonix_chat.json');
+  // ========== 数据目录 ==========
+
+  /// 获取 App 固定数据目录，所有 session 文件都在这里
+  Future<Directory> _getDataDir() async {
+    if (_dataDir != null) return _dataDir!;
+    final appDir = await getApplicationDocumentsDirectory();
+    _dataDir = Directory('${appDir.path}/reasonix');
+    if (!await _dataDir!.exists()) {
+      await _dataDir!.create(recursive: true);
+    }
+    return _dataDir!;
   }
 
   // ========== 会话管理 ==========
@@ -100,6 +96,7 @@ class ChatProvider extends ChangeNotifier {
       'name': name ?? '对话 ${_sessions.length + 1}',
       'created_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
+      'project_path': _projectProvider?.rootPath ?? '',
     };
     _sessions[id] = session;
     _currentSessionId = id;
@@ -116,11 +113,13 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> switchSession(String sessionId) async {
     if (!_sessions.containsKey(sessionId)) return;
+    // 先保存当前会话
     await _save();
     _currentSessionId = sessionId;
     _sessions[sessionId]!['updated_at'] = DateTime.now().toIso8601String();
     _saveSessionMeta();
-    await load();
+    // 加载目标会话的消息
+    await _loadSessionMessages();
     notifyListeners();
   }
 
@@ -150,10 +149,10 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  /// 获取指定 session 的数据文件路径（始终在 App 数据目录下）
   Future<File> _getSessionFile(String sessionId) async {
-    final base = await _getMemoryFile();
-    final parent = base.parent;
-    return File('${parent.path}/.reasonix_session_$sessionId.json');
+    final dir = await _getDataDir();
+    return File('${dir.path}/session_$sessionId.json');
   }
 
   /// 获取当前 session 对应的文件
@@ -161,16 +160,23 @@ class ChatProvider extends ChangeNotifier {
     if (_currentSessionId != null) {
       return _getSessionFile(_currentSessionId!);
     }
-    // 没有 session 时用默认文件
-    return _getMemoryFile();
+    // 没有 session 时用临时文件
+    final dir = await _getDataDir();
+    return File('${dir.path}/session_default.json');
+  }
+
+  /// session meta 文件路径（始终在 App 数据目录下）
+  Future<File> _getSessionMetaFile() async {
+    final dir = await _getDataDir();
+    return File('${dir.path}/sessions.json');
   }
 
   Future<void> _saveSessionMeta() async {
     try {
-      final base = await _getMemoryFile();
-      final metaFile = File('${base.parent.path}/.reasonix_sessions.json');
+      final metaFile = await _getSessionMetaFile();
       await metaFile.parent.create(recursive: true);
       await metaFile.writeAsString(jsonEncode({
+        'version': kMemoryFileVersion,
         'sessions': _sessions,
         'current_session_id': _currentSessionId,
       }));
@@ -179,51 +185,137 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> _loadSessionMeta() async {
     try {
-      final base = await _getMemoryFile();
-      final metaFile = File('${base.parent.path}/.reasonix_sessions.json');
+      final metaFile = await _getSessionMetaFile();
       if (await metaFile.exists()) {
         final data = jsonDecode(await metaFile.readAsString()) as Map<String, dynamic>;
         if (data['sessions'] is Map) {
           _sessions.clear();
-          (data['sessions'] as Map).forEach((k, v) => _sessions[k.toString()] = v as Map<String, dynamic>);
+          (data['sessions'] as Map).forEach((k, v) => _sessions[k.toString()] = Map<String, dynamic>.from(v as Map));
         }
         _currentSessionId = data['current_session_id'] as String?;
       }
     } catch (_) {}
-    if (_sessions.isEmpty) createSession(name: '默认对话');
+    if (_sessions.isEmpty) {
+      createSession(name: '默认对话');
+    }
   }
 
-  // ========== 记忆加载/保存 ==========
-
-  Future<void> load() async {
-    await _loadSessionMeta();
-    // 根据当前 session 读取对应的文件
+  /// 加载当前 session 的消息
+  Future<void> _loadSessionMessages() async {
     final file = await _getCurrentSessionFile();
     try {
       if (await file.exists()) {
-        final raw = await file.readAsString();
-        _parseAndLoad(raw);
-        notifyListeners();
+        _parseAndLoad(await file.readAsString());
         return;
       }
     } catch (_) {}
-    // 没有当前 session 文件，尝试从旧格式迁移
-    if (_projectProvider != null && _projectProvider!.hasProject) {
-      await _initFallbackFile();
-      if (_fallbackFile != null && await _fallbackFile!.exists()) {
-        try {
-          final oldRaw = await _fallbackFile!.readAsString();
-          final oldJson = jsonDecode(oldRaw) as Map<String, dynamic>;
-          if (oldJson.containsKey('messages') && (oldJson['messages'] as List).isNotEmpty) {
-            _parseAndLoad(oldRaw);
-            await _save();
-            await _fallbackFile!.delete();
-            notifyListeners();
-            return;
-          }
-        } catch (_) {}
+    // 没有数据，保持空状态
+    _messages.clear();
+    _totalPromptTokens = 0;
+    _totalCompletionTokens = 0;
+    _totalCacheHitTokens = 0;
+    _totalCost = 0;
+  }
+
+  /// 尝试从旧格式迁移数据
+  Future<void> _migrateOldFormat() async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      // 旧格式: reasonix_chat.json
+      final oldFile = File('${appDir.path}/reasonix_chat.json');
+      if (await oldFile.exists()) {
+        final raw = await oldFile.readAsString();
+        final json = jsonDecode(raw) as Map<String, dynamic>;
+        if (json.containsKey('messages') && (json['messages'] as List).isNotEmpty) {
+          // 迁移到当前 session
+          _parseAndLoad(raw);
+          await _save();
+          await oldFile.delete();
+          debugPrint('旧格式数据迁移成功');
+        }
       }
+
+      // 旧格式: 项目目录下的 .reasonix_memory.json
+      if (_projectProvider != null && _projectProvider!.hasProject) {
+        final projectMemory = File(_projectProvider!.memoryFilePath!);
+        if (await projectMemory.exists()) {
+          final raw = await projectMemory.readAsString();
+          final json = jsonDecode(raw) as Map<String, dynamic>;
+          if (json.containsKey('messages') && (json['messages'] as List).isNotEmpty) {
+            // 创建新 session 并迁入
+            createSession(name: '迁移的对话');
+            _parseAndLoad(raw);
+            await _save();
+            debugPrint('项目记忆迁移成功');
+          }
+        }
+      }
+
+      // 旧格式: 项目目录下的 .reasonix_sessions.json 和 .reasonix_session_*.json
+      if (_projectProvider != null && _projectProvider!.hasProject) {
+        final projectDir = _projectProvider!.rootPath;
+        final oldMetaFile = File('$projectDir/.reasonix_sessions.json');
+        if (await oldMetaFile.exists()) {
+          final raw = await oldMetaFile.readAsString();
+          final data = jsonDecode(raw) as Map<String, dynamic>;
+          if (data['sessions'] is Map) {
+            final oldSessions = data['sessions'] as Map;
+            for (final entry in oldSessions.entries) {
+              final oldId = entry.key.toString();
+              final oldSessionFile = File('$projectDir/.reasonix_session_$oldId.json');
+              if (await oldSessionFile.exists()) {
+                // 复制到新位置
+                final newFile = await _getSessionFile(oldId);
+                await newFile.writeAsString(await oldSessionFile.readAsString());
+                await oldSessionFile.delete();
+              }
+              // 添加到当前 sessions 列表（如果 ID 不重复）
+              if (!_sessions.containsKey(oldId)) {
+                _sessions[oldId] = Map<String, dynamic>.from(entry.value as Map);
+              }
+            }
+            // 更新 current session id
+            if (data['current_session_id'] != null) {
+              _currentSessionId = data['current_session_id'] as String;
+            }
+            await _saveSessionMeta();
+            await oldMetaFile.delete();
+            debugPrint('旧 session 数据迁移成功');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('旧格式迁移失败: $e');
     }
+  }
+
+  /// 项目切换时的处理
+  Future<void> _onProjectChanged() async {
+    // 保存当前会话
+    await _save();
+    // 更新系统提示中的项目路径
+    _updateSystemPrompt();
+    notifyListeners();
+  }
+
+  // ========== 初始化和加载 ==========
+
+  /// App 启动时调用，加载会话列表和上次的对话
+  Future<void> init() async {
+    await _loadSessionMeta();
+    // 尝试迁移旧格式数据
+    await _migrateOldFormat();
+    // 加载当前 session 的消息
+    if (_currentSessionId != null && _sessions.containsKey(_currentSessionId)) {
+      await _loadSessionMessages();
+    }
+    notifyListeners();
+  }
+
+  /// load() 用于项目切换等场景
+  Future<void> load() async {
+    await _loadSessionMeta();
+    await _loadSessionMessages();
     notifyListeners();
   }
 
@@ -283,7 +375,6 @@ class ChatProvider extends ChangeNotifier {
           validAssistantIndices.add(i);
           assistantToolIds.addAll(ids.whereType<String>());
         }
-        // 不完整的 assistant 不加入 validAssistantIndices，其 tool ids 也不记录
       }
     }
 
@@ -295,7 +386,6 @@ class ChatProvider extends ChangeNotifier {
           _messages.removeAt(i);
         }
       } else if (m.role == 'tool') {
-        // tool 消息的 toolCallId 不属于任何有效的 assistant，则移除
         if (m.toolCallId != null && !assistantToolIds.contains(m.toolCallId)) {
           _messages.removeAt(i);
         }
@@ -341,8 +431,6 @@ class ChatProvider extends ChangeNotifier {
       _streamingMessage = null;
       _messages.add(Message(role: 'assistant', content: msg.content));
     }
-    // 清理不完整的 tool_calls：如果最后一条 assistant 有 tool_calls
-    // 但没有足够的 tool 响应，则移除该 assistant 消息及已添加的部分 tool 结果
     _fixIncompleteToolCalls();
     _isProcessing = false; _isStreaming = false;
     _save();
@@ -353,6 +441,21 @@ class ChatProvider extends ChangeNotifier {
     _messages.add(msg);
     _save();
     notifyListeners();
+  }
+
+  /// 更新系统提示（项目路径变化时）
+  void _updateSystemPrompt() {
+    final projectPath = _projectProvider?.rootPath ?? '';
+    final systemPrompt = projectPath.isNotEmpty
+        ? '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。\n\n当前项目根目录: $projectPath\n所有文件操作都基于此目录，使用相对路径即可。'
+        : '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。';
+
+    final idx = _messages.indexWhere((m) => m.role == 'system');
+    if (idx >= 0) {
+      _messages[idx] = Message(role: 'system', content: systemPrompt);
+    } else if (_messages.isNotEmpty) {
+      _messages.insert(0, Message(role: 'system', content: systemPrompt));
+    }
   }
 
   Future<void> sendMessage(String text) async {
@@ -368,7 +471,6 @@ class ChatProvider extends ChangeNotifier {
     if (!_messages.any((m) => m.role == 'system')) {
       _messages.add(Message(role: 'system', content: systemPrompt));
     } else {
-      // 更新已有的 system 消息（项目路径可能变了）
       final idx = _messages.indexWhere((m) => m.role == 'system');
       if (idx >= 0) {
         _messages[idx] = Message(role: 'system', content: systemPrompt);
@@ -419,7 +521,6 @@ class ChatProvider extends ChangeNotifier {
       }
       _fixIncompleteToolCalls();
     } catch (e) {
-      // 异常时也要保留已有内容
       _messages.add(Message(role: 'assistant', content: '执行出错: $e'));
       _fixIncompleteToolCalls();
       _save();
