@@ -53,15 +53,12 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'API Key',
-                      hintText: 'sk-...',
-                      prefixIcon: Icon(Icons.key),
-                    ),
-                    obscureText: true,
-                    controller: TextEditingController(text: settings.apiKey),
-                    onSubmitted: (v) => settings.setApiKey(v.trim()),
+                  _SecuredTextField(
+                    label: 'API Key',
+                    hint: 'sk-...',
+                    icon: Icons.key,
+                    value: settings.apiKey,
+                    onChanged: (v) => settings.setApiKey(v.trim()),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -71,7 +68,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       prefixIcon: Icon(Icons.link),
                     ),
                     controller: TextEditingController(text: settings.apiBaseUrl),
-                    onSubmitted: (v) => settings.setApiBaseUrl(v.trim()),
+                    onChanged: (v) => settings.setApiBaseUrl(v.trim()),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -81,7 +78,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       prefixIcon: Icon(Icons.memory),
                     ),
                     controller: TextEditingController(text: settings.apiModel),
-                    onSubmitted: (v) => settings.setApiModel(v.trim()),
+                    onChanged: (v) => settings.setApiModel(v.trim()),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -529,6 +526,71 @@ class _SettingsPageState extends State<SettingsPage> {
             context.read<SettingsProvider>().setLastProjectPath(path);
             Navigator.of(context).pop();
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// 安全输入框 — 支持切换显示/隐藏
+/// 隐藏时使用 obscureText，显示时关闭 obscureText（使用用户设置的键盘）
+class _SecuredTextField extends StatefulWidget {
+  final String label;
+  final String hint;
+  final IconData icon;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const _SecuredTextField({
+    required this.label,
+    required this.hint,
+    required this.icon,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  State<_SecuredTextField> createState() => _SecuredTextFieldState();
+}
+
+class _SecuredTextFieldState extends State<_SecuredTextField> {
+  bool _visible = true;
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SecuredTextField old) {
+    super.didUpdateWidget(old);
+    if (widget.value != _controller.text) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      obscureText: !_visible,
+      onChanged: widget.onChanged,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        hintText: widget.hint,
+        prefixIcon: Icon(widget.icon),
+        suffixIcon: IconButton(
+          icon: Icon(_visible ? Icons.visibility_off : Icons.visibility),
+          tooltip: _visible ? '隐藏' : '显示',
+          onPressed: () => setState(() => _visible = !_visible),
         ),
       ),
     );
