@@ -268,14 +268,35 @@ class ChatProvider extends ChangeNotifier {
   }
 
   void _fixIncompleteToolCalls() {
-    final respondedIds = <String>{};
-    for (final m in _messages) {
-      if (m.role == 'tool' && m.toolCallId != null) respondedIds.add(m.toolCallId!);
+    // 收集每个 assistant tool_calls 对应的 tool_call_id
+    final assistantToolIds = <String>{};
+    final validAssistantIndices = <int>{};
+    for (int i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      if (m.role == 'assistant' && m.toolCalls != null && m.toolCalls!.isNotEmpty) {
+        final ids = m.toolCalls!.map((tc) => tc['id'] as String?).toSet();
+        final allResponded = ids.every((id) {
+          if (id == null) return false;
+          return _messages.any((msg) => msg.role == 'tool' && msg.toolCallId == id);
+        });
+        if (allResponded) {
+          validAssistantIndices.add(i);
+          assistantToolIds.addAll(ids.whereType<String>());
+        }
+        // 不完整的 assistant 不加入 validAssistantIndices，其 tool ids 也不记录
+      }
     }
+
+    // 移除不完整的 assistant 消息 + 孤立的 tool 结果
     for (int i = _messages.length - 1; i >= 0; i--) {
       final m = _messages[i];
       if (m.role == 'assistant' && m.toolCalls != null && m.toolCalls!.isNotEmpty) {
-        if (!m.toolCalls!.every((tc) => respondedIds.contains(tc['id'] as String?))) {
+        if (!validAssistantIndices.contains(i)) {
+          _messages.removeAt(i);
+        }
+      } else if (m.role == 'tool') {
+        // tool 消息的 toolCallId 不属于任何有效的 assistant，则移除
+        if (m.toolCallId != null && !assistantToolIds.contains(m.toolCallId)) {
           _messages.removeAt(i);
         }
       }
@@ -320,7 +341,11 @@ class ChatProvider extends ChangeNotifier {
       _streamingMessage = null;
       _messages.add(Message(role: 'assistant', content: msg.content));
     }
+    // 清理不完整的 tool_calls：如果最后一条 assistant 有 tool_calls
+    // 但没有足够的 tool 响应，则移除该 assistant 消息及已添加的部分 tool 结果
+    _fixIncompleteToolCalls();
     _isProcessing = false; _isStreaming = false;
+    _save();
     notifyListeners();
   }
 
@@ -378,7 +403,9 @@ class ChatProvider extends ChangeNotifier {
         break;
       }
     }
+    _fixIncompleteToolCalls();
     _isProcessing = false; _isStreaming = false;
+    _save();
     notifyListeners();
   }
 
