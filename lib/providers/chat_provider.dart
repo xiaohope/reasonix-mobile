@@ -10,7 +10,7 @@ import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
 import 'project_provider.dart';
 
-const String kMemoryFileVersion = 2;
+const int kMemoryFileVersion = 2;
 
 class ChatProvider extends ChangeNotifier {
   final List<Message> _messages = [];
