@@ -1,9 +1,6 @@
 import '../models/usage_info.dart';
 
 class Message {
-import '../models/usage_info.dart';
-
-class
   final String role;
   final String content;
   final String? toolCallId;
@@ -33,6 +30,7 @@ class
     String? toolName,
     List<Map<String, dynamic>>? toolCalls,
     UsageInfo? usage,
+    String? imageBase64,
     DateTime? timestamp,
     bool? isStreaming,
   }) {
@@ -43,12 +41,12 @@ class
       toolName: toolName ?? this.toolName,
       toolCalls: toolCalls ?? this.toolCalls,
       usage: usage ?? this.usage,
+      imageBase64: imageBase64 ?? this.imageBase64,
       timestamp: timestamp ?? this.timestamp,
       isStreaming: isStreaming ?? this.isStreaming,
     );
   }
 
-  /// 用于 LLM API 请求
   Map<String, dynamic> toApiMessage() {
     final map = <String, dynamic>{
       'role': role == 'tool' ? 'tool' : role,
