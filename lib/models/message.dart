@@ -1,13 +1,16 @@
 import '../models/usage_info.dart';
 
-/// 聊天消息
 class Message {
+import '../models/usage_info.dart';
+
+class
   final String role;
   final String content;
   final String? toolCallId;
   final String? toolName;
   final List<Map<String, dynamic>>? toolCalls;
   final UsageInfo? usage;
+  final String? imageBase64;
   final DateTime timestamp;
   final bool isStreaming;
 
@@ -18,6 +21,7 @@ class Message {
     this.toolName,
     this.toolCalls,
     this.usage,
+    this.imageBase64,
     DateTime? timestamp,
     this.isStreaming = false,
   }) : timestamp = timestamp ?? DateTime.now();

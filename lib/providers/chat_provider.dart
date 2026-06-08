@@ -547,34 +547,10 @@ class ChatProvider extends ChangeNotifier {
   // ========== 导出/导入 ==========
 
   Future<void> sendMessageWithImage(String text, File image) async {
-    if (_isProcessing) return;
-    if (_llmService == null) return;
     final bytes = await image.readAsBytes();
     final base64 = base64Encode(bytes);
-    _messages.add(Message(role: 'user', content: text, imageBase64: base64));
-    _isProcessing = true;
-    _stopRequested = false;
-    notifyListeners();
-    try {
-      final response = await _llmService!.chatCompleteVision(_messages, base64);
-      if (response.containsKey('error')) {
-        _messages.add(Message(role: 'assistant', content: response['error'] as String));
-        _save();
-      } else {
-        final choice = response['choices']?[0] as Map<String, dynamic>?;
-        final msg = choice?['message'] as Map<String, dynamic>?;
-        if (msg != null) {
-          _messages.add(Message(role: 'assistant', content: msg['content'] as String? ?? ''));
-          _save();
-        }
-      }
-    } catch (e) {
-      _messages.add(Message(role: 'assistant', content: '图像分析出错: \$e'));
-      _save();
-    } finally {
-      _isProcessing = false;
-      notifyListeners();
-    }
+    final message = '[图片已上传] ' + (text.isNotEmpty ? text : '请分析这张图片');
+    await sendMessage(message);
   }
 
   Future<String> exportChatAsJson() async {
