@@ -459,7 +459,12 @@ class ChatProvider extends ChangeNotifier {
   }
 
   Future<void> sendMessage(String text) async {
-    if (_isProcessing || text.trim().isEmpty) return;
+    if (text.trim().isEmpty) return;
+    // 如果卡住了，强制重置
+    if (_isProcessing) {
+      _isProcessing = false;
+      notifyListeners();
+    }
     if (_llmService == null || _toolEngine == null) return;
 
     // 动态构建 system prompt，包含项目路径信息
