@@ -9,6 +9,7 @@ import '../services/terminal_service.dart';
 import '../services/git_service.dart';
 import '../services/llm_service.dart';
 import '../widgets/project_picker.dart';
+import 'about_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 设置页面

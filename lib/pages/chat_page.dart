@@ -102,13 +102,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: '清空对话',
-            onPressed: () => context.read<ChatProvider>().clearMessages(),
-          ),
-        ],
+        actions: [],
       ),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
