@@ -384,8 +384,10 @@ class _SettingsPageState extends State<SettingsPage> {
           Card(
             child: ListTile(
               title: const Text('Reasonix Mobile'),
-              subtitle: const Text('v0.2.0 · 手机端 AI 编程助手'),
+              subtitle: const Text('v0.3.0 · 手机端 AI 编程助手'),
               leading: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
             ),
           ),
           const SizedBox(height: 40),
