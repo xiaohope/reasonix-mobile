@@ -551,7 +551,11 @@ class ChatProvider extends ChangeNotifier {
 
   // ========== 导出/导入 ==========
 
-  Future<void> sendMessageWithImage(String text, File image) async {
+  Future<void> sendMessageWithImage(String text, File? image) async {
+    if (image == null) {
+      await sendMessage(text);
+      return;
+    }
     final bytes = await image.readAsBytes();
     final base64 = base64Encode(bytes);
     final message = '[图片已上传] ' + (text.isNotEmpty ? text : '请分析这张图片');

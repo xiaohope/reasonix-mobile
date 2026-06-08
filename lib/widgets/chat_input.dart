@@ -21,7 +21,7 @@ class _ChatInputState extends State<ChatInput> {
   void _send() {
     final text = _controller.text.trim();
     if (text.isEmpty && _pickedImage == null) return;
-    if (widget.onSendWithImage != null) {
+    if (_pickedImage != null && widget.onSendWithImage != null) {
       widget.onSendWithImage!(text: text.isEmpty ? null : text, image: _pickedImage);
     } else {
       widget.onSend(text);
