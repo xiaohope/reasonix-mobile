@@ -22,10 +22,22 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   String _envInfo = '';
+  final _apiKeyController = TextEditingController();
+  final _apiUrlController = TextEditingController();
+  final _apiModelController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _apiKeyController.text = '';
+    _apiUrlController.text = 'https://api.deepseek.com/v1';
+    _apiModelController.text = 'deepseek-v4-flash';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final s = context.read<SettingsProvider>();
+      _apiKeyController.text = s.apiKey;
+      _apiUrlController.text = s.apiBaseUrl;
+      _apiModelController.text = s.apiModel;
+    });
     _loadEnv();
   }
 
@@ -68,7 +80,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       hintText: 'https://api.deepseek.com/v1',
                       prefixIcon: Icon(Icons.link),
                     ),
-                    controller: TextEditingController(text: settings.apiBaseUrl),
+                    controller: _apiUrlController,
                     onChanged: (v) => settings.setApiBaseUrl(v.trim()),
                   ),
                   const SizedBox(height: 12),
@@ -78,7 +90,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       hintText: 'deepseek-chat',
                       prefixIcon: Icon(Icons.memory),
                     ),
-                    controller: TextEditingController(text: settings.apiModel),
+                    controller: _apiModelController,
                     onChanged: (v) => settings.setApiModel(v.trim()),
                   ),
                   const SizedBox(height: 8),
