@@ -50,6 +50,12 @@ class _ChatPageState extends State<ChatPage> {
     _scrollToBottom();
   }
 
+  void _sendWithImage({String? text, dynamic image}) async {
+    final chat = context.read<ChatProvider>();
+    await chat.sendMessageWithImage(text ?? '', image);
+    _scrollToBottom();
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -202,6 +208,7 @@ class _ChatPageState extends State<ChatPage> {
           // 输入框
           ChatInput(
             onSend: _sendMessage,
+            onSendWithImage: _sendWithImage,
             enabled: hasProject && hasApiKey && !context.watch<ChatProvider>().isProcessing,
           ),
         ],
