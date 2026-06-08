@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'theme.dart';
 import 'pages/chat_page.dart';
 import 'pages/terminal_page.dart';
@@ -17,8 +16,6 @@ void main() async {
   await settings.load();
   final projectProvider = ProjectProvider();
   final chatProvider = ChatProvider();
-  // 请求存储权限
-  await _requestPermissions();
   // 初始化会话 — 加载上次保存的对话
   chatProvider.initProjectProvider(projectProvider);
   await chatProvider.init();
@@ -33,15 +30,6 @@ void main() async {
       child: const ReasonixMobileApp(),
     ),
   );
-}
-
-Future<void> _requestPermissions() async {
-  if (await Permission.manageExternalStorage.isDenied) {
-    await Permission.manageExternalStorage.request();
-  }
-  if (await Permission.storage.isDenied) {
-    await Permission.storage.request();
-  }
 }
 
 class ReasonixMobileApp extends StatelessWidget {
