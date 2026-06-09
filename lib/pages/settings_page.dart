@@ -1,15 +1,13 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
-import '../providers/project_provider.dart';
 import '../providers/chat_provider.dart';
 import '../services/terminal_service.dart';
-import '../services/git_service.dart';
 import '../services/llm_service.dart';
-import '../widgets/project_picker.dart';
+import '../services/skill_service.dart';
 import 'about_page.dart';
+import 'skills_manage_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 设置页面
@@ -21,6 +19,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final SkillService _skillService = SkillService();
   String _envInfo = '';
   final _apiKeyController = TextEditingController();
   final _apiUrlController = TextEditingController();
@@ -51,7 +50,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
-    final project = context.watch<ProjectProvider>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
@@ -117,71 +115,6 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // ── 项目 ──
-          _sectionTitle(context, '项目'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (project.hasProject) ...[
-                    Row(
-                      children: [
-                        const Icon(Icons.folder, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            project.rootPath,
-                            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => project.closeProject(),
-                          child: const Text('关闭'),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _pickProject,
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text('选择项目目录'),
-                      ),
-                    ),
-                  ],
-                  if (settings.lastProjectPath.isNotEmpty && !project.hasProject)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: InkWell(
-                        onTap: () {
-                          project.openProject(settings.lastProjectPath);
-                        },
-                        child: Row(
-                          children: [
-                            Icon(Icons.history, size: 14,
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
-                            const SizedBox(width: 6),
-                            Text(
-                              '上次: ${settings.lastProjectPath.split(Platform.pathSeparator).last}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
           // ── 主题 ──
           _sectionTitle(context, '外观'),
           Card(
@@ -234,30 +167,6 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // ── 文件权限 ──
-          _sectionTitle(context, '文件权限'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Android 11+ 需要授予「所有文件访问权限」才能读写项目文件。'),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _openAppSettings,
-                      icon: const Icon(Icons.settings),
-                      label: const Text('前往设置授予权限'),
-                    ),
                   ),
                 ],
               ),
@@ -391,6 +300,23 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
+          // ── 技能 ──
+          _sectionTitle(context, '技能'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF)),
+              title: const Text('技能管理'),
+              subtitle: const Text('管理 AI 技能模板，支持自定义'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SkillsManagePage(skillService: _skillService),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // ── 关于 ──
           _sectionTitle(context, '关于'),
           Card(
@@ -472,15 +398,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _openAppSettings() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        duration: Duration(seconds: 5),
-        content: Text('请手动操作: 系统设置 → 应用 → Reasonix → 权限 → 所有文件访问权限 → 允许'),
-      ),
-    );
-  }
-
   Future<void> _checkBalance() async {
     final settings = context.read<SettingsProvider>();
     final llm = LlmService();
@@ -531,20 +448,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _pickProject() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => DirectoryBrowser(
-          initialPath: '/storage/emulated/0',
-          onSelected: (path) {
-            context.read<ProjectProvider>().openProject(path);
-            context.read<SettingsProvider>().setLastProjectPath(path);
-            Navigator.of(context).pop();
-          },
-        ),
-      ),
-    );
-  }
 }
 
 /// 安全输入框 — 支持切换显示/隐藏

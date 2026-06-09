@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/message.dart';
 import '../models/tool_call.dart';
 import '../models/usage_info.dart';
+import '../models/skill.dart';
 import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
 import 'project_provider.dart';
@@ -118,6 +119,13 @@ class ChatProvider extends ChangeNotifier {
     _currentSessionId = sessionId;
     _sessions[sessionId]!['updated_at'] = DateTime.now().toIso8601String();
     _saveSessionMeta();
+    // 切换项目 —— 每个对话绑定一个项目
+    final sessionProjectPath = _sessions[sessionId]?['project_path'] as String?;
+    if (sessionProjectPath != null && sessionProjectPath.isNotEmpty
+        && _projectProvider != null
+        && _projectProvider!.rootPath != sessionProjectPath) {
+      _projectProvider!.openProject(sessionProjectPath);
+    }
     // 加载目标会话的消息
     await _loadSessionMessages();
     notifyListeners();
@@ -139,6 +147,13 @@ class ChatProvider extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  void setCurrentSessionProjectPath(String path) {
+    if (_currentSessionId != null && _sessions.containsKey(_currentSessionId)) {
+      _sessions[_currentSessionId]!['project_path'] = path;
+      _saveSessionMeta();
+    }
   }
 
   void renameSession(String sessionId, String newName) {
@@ -534,6 +549,11 @@ class ChatProvider extends ChangeNotifier {
       _save();
       notifyListeners();
     }
+  }
+
+  /// 注入技能指令 — 将技能的 prompt 作为用户消息自动发送
+  void injectSkill(Skill skill) {
+    sendMessage(skill.prompt);
   }
 
   void _addToolResult(ToolCall call, String result) {

@@ -1,4 +1,5 @@
 # Miscellaneous
+.reasonix/
 *.class
 *.log
 *.pyc

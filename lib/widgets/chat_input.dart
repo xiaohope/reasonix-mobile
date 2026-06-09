@@ -6,8 +6,15 @@ import 'package:image_picker/image_picker.dart';
 class ChatInput extends StatefulWidget {
   final Function(String) onSend;
   final Function({String? text, File? image})? onSendWithImage;
+  final VoidCallback? onSkillTap;
   final bool enabled;
-  const ChatInput({super.key, required this.onSend, this.onSendWithImage, this.enabled = true});
+  const ChatInput({
+    super.key,
+    required this.onSend,
+    this.onSendWithImage,
+    this.onSkillTap,
+    this.enabled = true,
+  });
   @override
   State<ChatInput> createState() => _ChatInputState();
 }
@@ -79,6 +86,13 @@ class _ChatInputState extends State<ChatInput> {
               icon: const Icon(Icons.image_outlined),
               tooltip: '上传图片',
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+            // 技能按钮
+            IconButton(
+              onPressed: (widget.enabled && widget.onSkillTap != null) ? widget.onSkillTap : null,
+              icon: const Icon(Icons.auto_awesome, size: 20),
+              tooltip: '技能(Skills)',
+              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.7),
             ),
             Expanded(child: TextField(
               controller: _controller, focusNode: _focusNode,
