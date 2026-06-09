@@ -1,7 +1,7 @@
 name: reasonix_mobile
 description: Reasonix AI coding assistant for mobile
 publish_to: 'none'
-version: 0.3.0+3
+version: 0.4.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

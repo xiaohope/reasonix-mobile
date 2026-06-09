@@ -92,12 +92,13 @@ class ChatProvider extends ChangeNotifier {
 
   String createSession({String? name}) {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
+    // 新对话不继承任何项目路径，让用户在聊天页重新选择
     final session = {
       'id': id,
       'name': name ?? '对话 ${_sessions.length + 1}',
       'created_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
-      'project_path': _projectProvider?.rootPath ?? '',
+      'project_path': '',
     };
     _sessions[id] = session;
     _currentSessionId = id;
@@ -106,6 +107,10 @@ class ChatProvider extends ChangeNotifier {
     _totalCompletionTokens = 0;
     _totalCacheHitTokens = 0;
     _totalCost = 0;
+    // 新对话没有绑定项目 → 关闭当前项目
+    if (_projectProvider != null && _projectProvider!.hasProject) {
+      _projectProvider!.closeProject();
+    }
     _saveSessionMeta();
     _save();
     notifyListeners();
@@ -121,9 +126,14 @@ class ChatProvider extends ChangeNotifier {
     _saveSessionMeta();
     // 切换项目 —— 每个对话绑定一个项目
     final sessionProjectPath = _sessions[sessionId]?['project_path'] as String?;
-    if (sessionProjectPath != null && sessionProjectPath.isNotEmpty
-        && _projectProvider != null
-        && _projectProvider!.rootPath != sessionProjectPath) {
+    if (_projectProvider == null) {
+      // 什么都不做
+    } else if (sessionProjectPath == null || sessionProjectPath.isEmpty) {
+      // 对话没绑定项目 → 关闭当前项目，让用户重新选择
+      if (_projectProvider!.hasProject) {
+        _projectProvider!.closeProject();
+      }
+    } else if (_projectProvider!.rootPath != sessionProjectPath) {
       _projectProvider!.openProject(sessionProjectPath);
     }
     // 加载目标会话的消息
