@@ -407,7 +407,15 @@ class _ChatPageState extends State<ChatPage> {
                                 style: const TextStyle(fontSize: 12)),
                           )).toList(),
                           onChanged: (id) {
-                            if (id != null) s.selectProvider(id);
+                            if (id != null) {
+                              s.selectProvider(id);
+                              // 重新配置 LLM 服务
+                              _llmService.configure(
+                                apiKey: s.apiKey,
+                                baseUrl: s.apiBaseUrl,
+                                model: s.apiModel,
+                              );
+                            }
                           },
                         ),
                       ),
