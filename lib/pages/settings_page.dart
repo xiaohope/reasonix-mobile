@@ -10,6 +10,8 @@ import '../services/knowledge_service.dart';
 import 'about_page.dart';
 import 'skills_manage_page.dart';
 import 'knowledge_manage_page.dart';
+import '../models/model_provider.dart';
+import 'providers_manage_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 设置页面
@@ -24,22 +26,10 @@ class _SettingsPageState extends State<SettingsPage> {
   final SkillService _skillService = SkillService();
   final KnowledgeService _knowledgeService = KnowledgeService();
   String _envInfo = '';
-  final _apiKeyController = TextEditingController();
-  final _apiUrlController = TextEditingController();
-  final _apiModelController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _apiKeyController.text = '';
-    _apiUrlController.text = 'https://api.deepseek.com/v1';
-    _apiModelController.text = 'deepseek-v4-flash';
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final s = context.read<SettingsProvider>();
-      _apiKeyController.text = s.apiKey;
-      _apiUrlController.text = s.apiBaseUrl;
-      _apiModelController.text = s.apiModel;
-    });
     _loadEnv();
   }
 
@@ -59,58 +49,120 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ── API 配置 ──
-          _sectionTitle(context, 'API 配置'),
+          // ── 大模型 ──
+          _sectionTitle(context, '大模型'),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SecuredTextField(
-                    label: 'API Key',
-                    hint: 'sk-...',
-                    icon: Icons.key,
-                    value: settings.apiKey,
-                    onChanged: (v) => settings.setApiKey(v.trim()),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'API 地址',
-                      hintText: 'https://api.deepseek.com/v1',
-                      prefixIcon: Icon(Icons.link),
-                    ),
-                    controller: _apiUrlController,
-                    onChanged: (v) => settings.setApiBaseUrl(v.trim()),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: '模型',
-                      hintText: 'deepseek-chat',
-                      prefixIcon: Icon(Icons.memory),
-                    ),
-                    controller: _apiModelController,
-                    onChanged: (v) => settings.setApiModel(v.trim()),
+                  // 当前 Provider 选择
+                  Consumer<SettingsProvider>(
+                    builder: (context, s, _) {
+                      final p = s.selectedProvider;
+                      if (p == null) return const SizedBox();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Provider 下拉
+                          DropdownButtonFormField<String>(
+                            value: s.selectedProviderId,
+                            decoration: const InputDecoration(
+                              labelText: '当前模型',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                            items: s.providers.map((p) => DropdownMenuItem(
+                              value: p.id,
+                              child: Text('${p.name} — ${p.model}', style: const TextStyle(fontSize: 13)),
+                            )).toList(),
+                            onChanged: (id) {
+                              if (id != null) s.selectProvider(id);
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          // API Key
+                          _SecuredTextField(
+                            label: 'API Key',
+                            hint: 'sk-...',
+                            icon: Icons.key,
+                            value: p.apiKey,
+                            onChanged: (v) {
+                              p.apiKey = v.trim();
+                              s.updateProvider(p);
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          // API 地址
+                          TextField(
+                            decoration: const InputDecoration(
+                              labelText: 'API 地址',
+                              hintText: 'https://api.deepseek.com/v1',
+                              prefixIcon: Icon(Icons.link),
+                              isDense: true,
+                            ),
+                            controller: TextEditingController.fromValue(
+                              TextEditingValue(
+                                text: p.apiBaseUrl,
+                                selection: TextSelection.collapsed(offset: p.apiBaseUrl.length),
+                              ),
+                            ),
+                            onChanged: (v) {
+                              p.apiBaseUrl = v.trim();
+                              s.updateProvider(p);
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          // 模型
+                          TextField(
+                            decoration: const InputDecoration(
+                              labelText: '模型',
+                              hintText: 'deepseek-v4-flash',
+                              prefixIcon: Icon(Icons.memory),
+                              isDense: true,
+                            ),
+                            controller: TextEditingController.fromValue(
+                              TextEditingValue(
+                                text: p.model,
+                                selection: TextSelection.collapsed(offset: p.model.length),
+                              ),
+                            ),
+                            onChanged: (v) {
+                              p.model = v.trim();
+                              s.updateProvider(p);
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                p.isConfigured ? Icons.check_circle : Icons.error_outline,
+                                size: 14,
+                                color: p.isConfigured ? Colors.green : Colors.orange,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                p.isConfigured ? '已配置' : '未配置 API Key',
+                                style: TextStyle(fontSize: 12, color: p.isConfigured ? Colors.green : Colors.orange),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        settings.hasApiKey ? Icons.check_circle : Icons.error_outline,
-                        size: 14,
-                        color: settings.hasApiKey ? Colors.green : Colors.orange,
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ProvidersManagePage()),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        settings.hasApiKey ? '已配置' : '未配置 API Key',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: settings.hasApiKey ? Colors.green : Colors.orange,
-                        ),
-                      ),
-                    ],
+                      icon: const Icon(Icons.settings, size: 16),
+                      label: const Text('管理 Provider', style: TextStyle(fontSize: 12)),
+                    ),
                   ),
                 ],
               ),
@@ -147,6 +199,40 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: const Text('查看 API 账户余额'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _checkBalance(),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 技能 ──
+          _sectionTitle(context, '技能'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF)),
+              title: const Text('技能管理'),
+              subtitle: const Text('管理 AI 技能模板，支持自定义'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SkillsManagePage(skillService: _skillService),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 知识库 ──
+          _sectionTitle(context, '知识库'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.menu_book, color: Color(0xFF6C63FF)),
+              title: const Text('知识库管理'),
+              subtitle: const Text('管理参考文档，供 AI 阅读参考'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => KnowledgeManagePage(service: _knowledgeService),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -259,40 +345,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   );
                 },
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // ── 技能 ──
-          _sectionTitle(context, '技能'),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF)),
-              title: const Text('技能管理'),
-              subtitle: const Text('管理 AI 技能模板，支持自定义'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SkillsManagePage(skillService: _skillService),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // ── 知识库 ──
-          _sectionTitle(context, '知识库'),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.menu_book, color: Color(0xFF6C63FF)),
-              title: const Text('知识库管理'),
-              subtitle: const Text('管理参考文档，供 AI 阅读参考'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => KnowledgeManagePage(service: _knowledgeService),
-                ),
               ),
             ),
           ),

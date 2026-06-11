@@ -66,10 +66,13 @@ class ChatProvider extends ChangeNotifier {
     provider.onProjectOpened = () { _onProjectChanged(); };
   }
 
-  /// 切换聊天/编程模式
+  /// 切换聊天/编程模式（自动新建对话，避免消息混乱）
   void setMode(bool isProgramming) {
     if (_isProgrammingMode == isProgramming) return;
     _isProgrammingMode = isProgramming;
+    // 新建一个对应模式的对话
+    final label = isProgramming ? '编程' : '聊天';
+    createSession(name: '$label 对话');
     // 切模式时更新 system prompt
     if (_isProgrammingMode) {
       _updateSystemPrompt();
