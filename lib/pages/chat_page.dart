@@ -66,7 +66,8 @@ class _ChatPageState extends State<ChatPage> {
     _scrollToBottom();
   }
 
-  void _showSkillPicker() {
+  Future<void> _showSkillPicker() async {
+    await _skillService.refresh();
     final skills = _skillService.skills;
     if (skills.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

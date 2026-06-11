@@ -3,19 +3,24 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../models/skill.dart';
 
-/// 技能（Skill）管理服务
-/// 技能以 JSON 文件形式存储在 App 数据目录下
+/// 技能（Skill）管理服务 — 单例
+/// 技能以 .skill.md 文件存储在 App 数据目录下
 class SkillService {
+  // ── 单例 ──
+  static final SkillService _instance = SkillService._internal();
+  factory SkillService() => _instance;
+  SkillService._internal();
+
   List<Skill> _skills = [];
   Directory? _skillsDir;
+  bool _initialized = false;
 
   List<Skill> get skills => List.unmodifiable(_skills);
 
   // ── 默认内置技能 ──
-  static const List<Skill> _defaultSkills = [
+  static final List<Skill> _defaultSkills = [
     Skill(
-      id: 'code_review',
-      name: '代码审查',
+      id: 'code_review', name: '代码审查',
       description: '审查当前项目代码，找出问题',
       prompt: '请审查我当前项目的代码，重点关注：\n'
           '1) 潜在 bug\n2) 性能问题\n3) 代码规范\n'
@@ -24,62 +29,49 @@ class SkillService {
       icon: '🔍',
     ),
     Skill(
-      id: 'fix_bugs',
-      name: '修复Bug',
+      id: 'fix_bugs', name: '修复Bug',
       description: '分析和修复代码中的 Bug',
       prompt: '请分析这段代码中的 Bug，解释问题原因，并给出修复后的代码。',
       icon: '🐛',
     ),
     Skill(
-      id: 'explain',
-      name: '解释代码',
+      id: 'explain', name: '解释代码',
       description: '用通俗语言解释代码逻辑',
-      prompt: '请用通俗易懂的语言解释以下代码的功能和逻辑，'
-          '适合初学者理解。',
+      prompt: '请用通俗易懂的语言解释以下代码的功能和逻辑，适合初学者理解。',
       icon: '📖',
     ),
     Skill(
-      id: 'refactor',
-      name: '代码重构',
+      id: 'refactor', name: '代码重构',
       description: '优化代码结构和可读性',
       prompt: '请对这个代码进行重构，提高可读性和可维护性。\n'
-          '保持功能不变，优化变量命名、提取公共逻辑、'
-          '简化复杂条件等。',
+          '保持功能不变，优化变量命名、提取公共逻辑、简化复杂条件等。',
       icon: '🛠️',
     ),
     Skill(
-      id: 'add_comments',
-      name: '添加注释',
+      id: 'add_comments', name: '添加注释',
       description: '为代码添加中文注释',
-      prompt: '请为以下代码添加详细的中文注释，'
-          '解释每一段的功能和关键逻辑。',
+      prompt: '请为以下代码添加详细的中文注释，解释每一段的功能和关键逻辑。',
       icon: '💬',
     ),
     Skill(
-      id: 'write_test',
-      name: '写测试',
+      id: 'write_test', name: '写测试',
       description: '为代码生成单元测试',
-      prompt: '请为以下代码编写单元测试。\n'
-          '使用合适的测试框架，覆盖正常路径和边界情况。',
+      prompt: '请为以下代码编写单元测试。\n使用合适的测试框架，覆盖正常路径和边界情况。',
       icon: '🧪',
     ),
     Skill(
-      id: 'optimize',
-      name: '性能优化',
+      id: 'optimize', name: '性能优化',
       description: '分析性能瓶颈并给出优化建议',
       prompt: '请分析这段代码的性能瓶颈，给出优化建议。\n'
-          '关注：时间复杂度、内存使用、不必要的计算、'
-          'IO 操作等。',
+          '关注：时间复杂度、内存使用、不必要的计算、IO 操作等。',
       icon: '⚡',
     ),
     Skill(
-      id: 'security',
-      name: '安全审查',
+      id: 'security', name: '安全审查',
       description: '检查代码中的安全隐患',
       prompt: '请审查以下代码的安全性：\n'
           '1) 输入验证\n2) SQL/命令注入\n3) 路径遍历\n'
-          '4) 敏感信息泄露\n5) 认证授权\n\n'
-          '列出所有风险点及修复方案。',
+          '4) 敏感信息泄露\n5) 认证授权\n\n列出所有风险点及修复方案。',
       icon: '🔒',
     ),
   ];
@@ -87,50 +79,65 @@ class SkillService {
   // ── 初始化 ──
 
   Future<void> init() async {
+    if (_initialized) return;
     final appDir = await getApplicationDocumentsDirectory();
     _skillsDir = Directory('${appDir.path}/reasonix/skills');
     if (!await _skillsDir!.exists()) {
       await _skillsDir!.create(recursive: true);
     }
-    await load();
+    await _loadFromDisk();
+    _initialized = true;
   }
 
-  // ── CRUD ──
+  /// 从磁盘重新加载（从设置页返回后调用）
+  Future<void> refresh() async {
+    await _loadFromDisk();
+  }
 
-  /// 从磁盘加载技能列表，第一次运行时创建默认技能
-  Future<void> load() async {
+  Future<void> _loadFromDisk() async {
     _skills = [];
-    if (_skillsDir == null) return;
+    if (_skillsDir == null || !await _skillsDir!.exists()) return;
 
     try {
       final files = _skillsDir!.listSync();
+      // 先清理旧的 .json 格式技能文件（v0.3.0 遗留）
       for (final f in files) {
         if (f is File && f.path.endsWith('.json')) {
           try {
-            final json = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-            _skills.add(Skill.fromJson(json));
+            await f.delete();
+          } catch (_) {}
+        }
+      }
+      // 加载 .skill.md 格式
+      for (final f in files) {
+        if (f is File && f.path.endsWith('.skill.md')) {
+          try {
+            final id = f.uri.pathSegments.last.replaceAll('.skill.md', '');
+            final content = await f.readAsString();
+            _skills.add(Skill.fromMarkdown(content, id: id));
           } catch (_) {}
         }
       }
     } catch (_) {}
 
-    // 如果是首次（没有技能文件），创建默认技能
+    // 首次运行：创建默认技能
     if (_skills.isEmpty) {
       for (final skill in _defaultSkills) {
-        await _saveSkill(skill);
+        await _writeSkillFile(skill);
       }
       _skills = List.from(_defaultSkills);
     }
 
-    // 按 name 排序
     _skills.sort((a, b) => a.name.compareTo(b.name));
   }
 
-  Future<void> _saveSkill(Skill skill) async {
+  Future<void> _writeSkillFile(Skill skill) async {
     if (_skillsDir == null) return;
-    final file = File('${_skillsDir!.path}/${skill.id}.json');
-    await file.writeAsString(jsonEncode(skill.toJson()));
+    final file = File('${_skillsDir!.path}/${skill.id}.skill.md');
+    await file.writeAsString(skill.toMarkdown());
   }
+
+  // ── CRUD ──
 
   /// 添加或更新一个技能
   Future<void> upsertSkill(Skill skill) async {
@@ -140,14 +147,14 @@ class SkillService {
     } else {
       _skills.add(skill);
     }
-    await _saveSkill(skill);
+    await _writeSkillFile(skill);
   }
 
   /// 删除一个技能
   Future<void> deleteSkill(String id) async {
     _skills.removeWhere((s) => s.id == id);
     if (_skillsDir != null) {
-      final file = File('${_skillsDir!.path}/$id.json');
+      final file = File('${_skillsDir!.path}/$id.skill.md');
       if (await file.exists()) await file.delete();
     }
   }
@@ -163,14 +170,18 @@ class SkillService {
 
   /// 恢复所有默认技能
   Future<void> resetToDefaults() async {
-    // 清除所有现有技能文件
     if (_skillsDir != null && await _skillsDir!.exists()) {
-      await _skillsDir!.delete(recursive: true);
-      await _skillsDir!.create(recursive: true);
+      // 删除所有 .skill.md 文件
+      final files = _skillsDir!.listSync();
+      for (final f in files) {
+        if (f is File && f.path.endsWith('.skill.md')) {
+          await f.delete();
+        }
+      }
     }
     _skills = [];
     for (final skill in _defaultSkills) {
-      await _saveSkill(skill);
+      await _writeSkillFile(skill);
     }
     _skills = List.from(_defaultSkills);
   }

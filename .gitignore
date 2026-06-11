@@ -1,5 +1,6 @@
 # Miscellaneous
 .reasonix/
+*.zip
 *.class
 *.log
 *.pyc
