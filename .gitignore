@@ -1,6 +1,7 @@
 # Miscellaneous
 .reasonix/
 *.zip
+*.apk
 *.class
 *.log
 *.pyc

@@ -36,6 +36,11 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
         title: const Text('技能管理'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.file_open_outlined),
+            tooltip: '导入 .skill.md 文件',
+            onPressed: _importSkillFile,
+          ),
+          IconButton(
             icon: const Icon(Icons.restart_alt),
             tooltip: '恢复默认',
             onPressed: _confirmReset,
@@ -104,6 +109,83 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
         icon: const Icon(Icons.add),
         label: const Text('新建技能'),
       ),
+    );
+  }
+
+  /// 导入 .skill.md 文件 — 粘贴 markdown 内容，自动解析并保存
+  Future<void> _importSkillFile() async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('导入 .skill.md'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '粘贴 .skill.md 文件的内容：',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: ctrl,
+                maxLines: 10,
+                minLines: 6,
+                decoration: const InputDecoration(
+                  hintText: '---\nname: 技能名称\ndescription: ...\nicon: 🔍\n---\n\n指令内容...',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(12),
+                ),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+            child: const Text('导入'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result.isEmpty) return;
+
+    // 尝试解析
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    Skill skill;
+    try {
+      skill = Skill.fromMarkdown(result, id: id);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ 解析失败，请检查格式: $e')),
+      );
+      return;
+    }
+
+    // 验证必填字段
+    if (skill.name.isEmpty || skill.prompt.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('❌ 缺少 name 或 prompt，请检查 frontmatter 格式')),
+      );
+      return;
+    }
+
+    await widget.skillService.upsertSkill(skill);
+    await _loadSkills();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('✅ 已导入: ${skill.name}')),
     );
   }
 
