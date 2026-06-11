@@ -81,9 +81,10 @@ class ChatProvider extends ChangeNotifier {
       // 复用最近的同模式对话
       switchSession(existing.first['id'] as String);
     } else {
-      // 没有则新建
+      // 没有则新建，继承当前项目路径
       final label = isProgramming ? '编程' : '聊天';
-      createSession(name: '$label 对话', mode: modeLabel);
+      final currentProject = _projectProvider?.rootPath ?? '';
+      createSession(name: '$label 对话', mode: modeLabel, projectPath: currentProject);
     }
     // 切模式时更新 system prompt
     if (_isProgrammingMode) {
@@ -121,15 +122,14 @@ class ChatProvider extends ChangeNotifier {
   List<Map<String, dynamic>> get sessions => _sessions.values.toList()
     ..sort((a, b) => (b['updated_at'] as String).compareTo(a['updated_at'] as String));
 
-  String createSession({String? name, String? mode}) {
+  String createSession({String? name, String? mode, String? projectPath}) {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
-    // 新对话不继承任何项目路径，让用户在聊天页重新选择
     final session = {
       'id': id,
       'name': name ?? '对话 ${_sessions.length + 1}',
       'created_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
-      'project_path': '',
+      'project_path': projectPath ?? '',
       if (mode != null) 'mode': mode,
     };
     _sessions[id] = session;
@@ -139,10 +139,6 @@ class ChatProvider extends ChangeNotifier {
     _totalCompletionTokens = 0;
     _totalCacheHitTokens = 0;
     _totalCost = 0;
-    // 新对话没有绑定项目 → 关闭当前项目
-    if (_projectProvider != null && _projectProvider!.hasProject) {
-      _projectProvider!.closeProject();
-    }
     _saveSessionMeta();
     _save();
     notifyListeners();
@@ -160,12 +156,9 @@ class ChatProvider extends ChangeNotifier {
     final sessionProjectPath = _sessions[sessionId]?['project_path'] as String?;
     if (_projectProvider == null) {
       // 什么都不做
-    } else if (sessionProjectPath == null || sessionProjectPath.isEmpty) {
-      // 对话没绑定项目 → 关闭当前项目，让用户重新选择
-      if (_projectProvider!.hasProject) {
-        _projectProvider!.closeProject();
-      }
-    } else if (_projectProvider!.rootPath != sessionProjectPath) {
+    } else if (sessionProjectPath != null && sessionProjectPath.isNotEmpty
+        && _projectProvider!.rootPath != sessionProjectPath) {
+      // 会话有绑定项目且不同 → 切换项目
       _projectProvider!.openProject(sessionProjectPath);
     }
     // 加载目标会话的消息
