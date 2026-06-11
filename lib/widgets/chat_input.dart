@@ -48,6 +48,27 @@ class _ChatInputState extends State<ChatInput> {
     }
   }
 
+  Widget _toolBtn(BuildContext context, IconData icon, String label, VoidCallback? onTap, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 3),
+              Text(label, style: TextStyle(fontSize: 11, color: color)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -83,26 +104,6 @@ class _ChatInputState extends State<ChatInput> {
               ),
             ),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            IconButton(
-              onPressed: widget.enabled ? _pickImage : null,
-              icon: const Icon(Icons.image_outlined),
-              tooltip: '上传图片',
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-            ),
-            // 技能按钮
-            IconButton(
-              onPressed: (widget.enabled && widget.onSkillTap != null) ? widget.onSkillTap : null,
-              icon: const Icon(Icons.auto_awesome, size: 20),
-              tooltip: '技能(Skills)',
-              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.7),
-            ),
-            // 知识库按钮
-            IconButton(
-              onPressed: (widget.enabled && widget.onKnowledgeTap != null) ? widget.onKnowledgeTap : null,
-              icon: const Icon(Icons.menu_book, size: 20),
-              tooltip: '知识库',
-              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.7),
-            ),
             Expanded(child: TextField(
               controller: _controller, focusNode: _focusNode,
               enabled: widget.enabled, maxLines: 5, minLines: 1,
@@ -122,6 +123,17 @@ class _ChatInputState extends State<ChatInput> {
               icon: Icon(Icons.send_rounded, color: widget.enabled ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
               tooltip: '发送',
             ),
+          ]),
+          // 底部工具按钮
+          Row(children: [
+            _toolBtn(context, Icons.image_outlined, '上传图片', widget.enabled ? _pickImage : null,
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
+            _toolBtn(context, Icons.auto_awesome, '技能', 
+                (widget.enabled && widget.onSkillTap != null) ? widget.onSkillTap : null,
+                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.7)),
+            _toolBtn(context, Icons.menu_book, '知识库',
+                (widget.enabled && widget.onKnowledgeTap != null) ? widget.onKnowledgeTap : null,
+                Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.7)),
           ]),
         ],
       )),
