@@ -47,12 +47,12 @@ class Message {
     );
   }
 
-  Map<String, dynamic> toApiMessage() {
+  Map<String, dynamic> toApiMessage({bool multimodal = false}) {
     final map = <String, dynamic>{
       'role': role == 'tool' ? 'tool' : role,
     };
-    if (imageBase64 != null && role == 'user') {
-      // 多模态消息：文本 + 图片
+    if (imageBase64 != null && role == 'user' && multimodal) {
+      // 多模态：文本 + 图片（仅支持多模态的模型可用）
       map['content'] = [
         {'type': 'text', 'text': content},
         {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,$imageBase64'}},

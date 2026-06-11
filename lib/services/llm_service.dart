@@ -182,9 +182,13 @@ class LlmService {
     }
 
     final uri = Uri.parse('$_baseUrl/chat/completions');
+    final modelLower = _model.toLowerCase();
+    final multimodal = modelLower.contains('agnes') || modelLower.contains('gpt-4')
+        || modelLower.contains('gemini') || modelLower.contains('claude-3')
+        || modelLower.contains('qwen-vl');
     final body = jsonEncode({
       'model': _model,
-      'messages': messages.map((m) => m.toApiMessage()).toList(),
+      'messages': messages.map((m) => m.toApiMessage(multimodal: multimodal)).toList(),
       'tools': _tools,
       'stream': true,
       'temperature': _temperature,
@@ -235,10 +239,16 @@ class LlmService {
       return {'error': '请先在设置中配置 API Key'};
     }
 
+    // 自动检测是否支持多模态（图片）
+    final modelLower = _model.toLowerCase();
+    final multimodal = modelLower.contains('agnes') || modelLower.contains('gpt-4')
+        || modelLower.contains('gemini') || modelLower.contains('claude-3')
+        || modelLower.contains('qwen-vl');
+
     final uri = Uri.parse('$_baseUrl/chat/completions');
     final bodyMap = <String, dynamic>{
       'model': _model,
-      'messages': messages.map((m) => m.toApiMessage()).toList(),
+      'messages': messages.map((m) => m.toApiMessage(multimodal: multimodal)).toList(),
       'stream': false,
       'temperature': _temperature,
     };
