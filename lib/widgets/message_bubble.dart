@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -50,12 +51,7 @@ class MessageBubble extends StatelessWidget {
                       ),
                     ),
                     child: isUser
-                        ? SelectableText(
-                            message.content,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          )
+                        ? _buildUserContent(context, message)
                         : _buildMarkdown(context, message.content),
                   ),
                 // 复制按钮
@@ -174,6 +170,41 @@ class MessageBubble extends StatelessWidget {
           height: 1.4,
         ),
       ),
+    );
+  }
+
+  /// 用户消息内容（文本 + 可选图片）
+  Widget _buildUserContent(BuildContext context, Message message) {
+    final children = <Widget>[];
+    if (message.imageBase64 != null) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.memory(
+              base64Decode(message.imageBase64!),
+              width: double.infinity,
+              fit: BoxFit.contain,
+              errorBuilder: (ctx, e, s) => const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+            ),
+          ),
+        ),
+      );
+    }
+    if (message.content.isNotEmpty) {
+      children.add(
+        SelectableText(
+          message.content,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
     );
   }
 

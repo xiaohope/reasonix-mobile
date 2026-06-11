@@ -411,6 +411,7 @@ class ChatProvider extends ChangeNotifier {
         toolCallId: msg['tool_call_id'] as String?, toolName: msg['tool_name'] as String?,
         toolCalls: (msg['tool_calls'] as List<dynamic>?)?.cast<Map<String, dynamic>>(),
         usage: usage,
+        imageBase64: msg['image_base64'] as String?,
       ));
     }
     _fixIncompleteToolCalls();
@@ -461,6 +462,7 @@ class ChatProvider extends ChangeNotifier {
           if (m.toolCallId != null) 'tool_call_id': m.toolCallId,
           if (m.toolName != null) 'tool_name': m.toolName,
           if (m.toolCalls != null) 'tool_calls': m.toolCalls,
+          if (m.imageBase64 != null) 'image_base64': m.imageBase64,
           if (m.usage != null) 'usage': {
             'prompt_tokens': m.usage!.promptTokens,
             'completion_tokens': m.usage!.completionTokens,
@@ -530,8 +532,8 @@ class ChatProvider extends ChangeNotifier {
         : '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。';
   }
 
-  Future<void> sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
+  Future<void> sendMessage(String text, {String? imageBase64}) async {
+    if (text.trim().isEmpty && imageBase64 == null) return;
     // 如果卡住了，强制重置
     if (_isProcessing) {
       _isProcessing = false;
@@ -539,7 +541,7 @@ class ChatProvider extends ChangeNotifier {
     }
     if (_llmService == null) return;
 
-    _messages.add(Message(role: 'user', content: text.trim()));
+    _messages.add(Message(role: 'user', content: text.trim(), imageBase64: imageBase64));
     _isProcessing = true;
     _stopRequested = false;
     notifyListeners();
@@ -654,9 +656,9 @@ class ChatProvider extends ChangeNotifier {
       return;
     }
     final bytes = await image.readAsBytes();
-    final base64 = base64Encode(bytes);
-    final message = '[图片已上传] ' + (text.isNotEmpty ? text : '请分析这张图片');
-    await sendMessage(message);
+    final b64 = base64Encode(bytes);
+    final msg = text.isNotEmpty ? text : '请分析这张图片';
+    await sendMessage(msg, imageBase64: b64);
   }
 
   Future<String> exportChatAsJson() async {

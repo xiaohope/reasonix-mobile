@@ -50,8 +50,16 @@ class Message {
   Map<String, dynamic> toApiMessage() {
     final map = <String, dynamic>{
       'role': role == 'tool' ? 'tool' : role,
-      'content': content,
     };
+    if (imageBase64 != null && role == 'user') {
+      // 多模态消息：文本 + 图片
+      map['content'] = [
+        {'type': 'text', 'text': content},
+        {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,$imageBase64'}},
+      ];
+    } else {
+      map['content'] = content;
+    }
     if (toolCallId != null && role == 'tool') {
       map['tool_call_id'] = toolCallId;
     }
