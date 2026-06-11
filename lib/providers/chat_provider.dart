@@ -333,6 +333,13 @@ class ChatProvider extends ChangeNotifier {
     // 加载当前 session 的消息
     if (_currentSessionId != null && _sessions.containsKey(_currentSessionId)) {
       await _loadSessionMessages();
+      // 恢复当前对话绑定的项目
+      final savedPath = _sessions[_currentSessionId]?['project_path'] as String?;
+      if (savedPath != null && savedPath.isNotEmpty && _projectProvider != null) {
+        if (!_projectProvider!.hasProject || _projectProvider!.rootPath != savedPath) {
+          _projectProvider!.openProject(savedPath);
+        }
+      }
     }
     notifyListeners();
   }
