@@ -59,6 +59,7 @@ class Skill {
 
       if (endIdx > 0) {
         // 解析 frontmatter 行
+        String? frontmatterPrompt;
         for (int i = 1; i < endIdx; i++) {
           final line = lines[i].trim();
           if (line.isEmpty) continue;
@@ -70,15 +71,21 @@ class Skill {
               case 'name': name = value; break;
               case 'description': description = value; break;
               case 'icon': icon = value.isNotEmpty ? value : null; break;
+              case 'prompt': frontmatterPrompt = value; break;
             }
           }
         }
-        // 剩下的部分是 prompt（跳过 frontmatter 和空行）
-        final promptLines = lines.sublist(endIdx + 1);
-        while (promptLines.isNotEmpty && promptLines.first.trim().isEmpty) {
-          promptLines.removeAt(0);
+        // 如果有 frontmatter prompt 字段 → 用它（短指令），忽略正文
+        // 没有 → 用正文作为 prompt（向后兼容）
+        if (frontmatterPrompt != null && frontmatterPrompt.isNotEmpty) {
+          prompt = frontmatterPrompt;
+        } else {
+          final promptLines = lines.sublist(endIdx + 1);
+          while (promptLines.isNotEmpty && promptLines.first.trim().isEmpty) {
+            promptLines.removeAt(0);
+          }
+          prompt = promptLines.join('\n').trim();
         }
-        prompt = promptLines.join('\n').trim();
       }
     }
 
