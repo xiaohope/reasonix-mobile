@@ -528,8 +528,8 @@ class ChatProvider extends ChangeNotifier {
   String _buildProgrammingPrompt() {
     final projectPath = _projectProvider?.rootPath ?? '';
     return projectPath.isNotEmpty
-        ? '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。\n\n当前项目根目录: $projectPath\n所有文件操作都基于此目录，使用相对路径即可。'
-        : '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。';
+        ? '你是 Reasonix，一个手机上的 AI 编程助手。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。\n\n当前项目根目录: $projectPath\n所有文件操作都基于此目录，使用相对路径即可。'
+        : '你是 Reasonix，一个手机上的 AI 编程助手。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。';
   }
 
   Future<void> sendMessage(String text, {String? imageBase64}) async {
