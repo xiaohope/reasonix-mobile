@@ -135,45 +135,6 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // ── 运行环境 ──
-          _sectionTitle(context, '运行环境'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_envInfo.isNotEmpty)
-                    Text(
-                      _envInfo,
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
-                    ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        size: 14,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Android 上需要安装 Termux 才能执行 shell 命令。\n聊天和文件操作不需要。',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
           // ── 用量 ──
           _sectionTitle(context, '用量'),
           Card(
@@ -317,12 +278,51 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
+          // ── 运行环境 ──
+          _sectionTitle(context, '运行环境'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_envInfo.isNotEmpty)
+                    Text(
+                      _envInfo,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                    ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Android 上需要安装 Termux 才能执行 shell 命令。\n聊天和文件操作不需要。',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // ── 关于 ──
           _sectionTitle(context, '关于'),
           Card(
             child: ListTile(
               title: const Text('Reasonix Mobile'),
-              subtitle: const Text('v0.4.0 · 手机端 AI 编程助手'),
+              subtitle: const Text('v0.5.0 · 手机端 AI 编程助手'),
               leading: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF)),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),

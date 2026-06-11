@@ -19,7 +19,7 @@ class ChatProvider extends ChangeNotifier {
   bool _isProcessing = false;
   bool _isStreaming = false;
   bool _stopRequested = false;
-  bool _isProgrammingMode = true;  // 默认编程模式
+  bool _isProgrammingMode = false;  // 默认聊天模式
   int _totalPromptTokens = 0;
   int _totalCompletionTokens = 0;
   int _totalCacheHitTokens = 0;
