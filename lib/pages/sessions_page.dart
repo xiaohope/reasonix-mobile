@@ -24,7 +24,8 @@ class _SessionsPageState extends State<SessionsPage> {
             icon: const Icon(Icons.add),
             tooltip: '新建对话',
             onPressed: () {
-              chatProvider.createSession(name: '新对话 ${chatProvider.sessions.length + 1}');
+              final mode = chatProvider.isProgrammingMode ? 'programming' : 'chat';
+              chatProvider.createSession(name: '新对话 ${chatProvider.sessions.length + 1}', mode: mode);
               chatProvider.onSwitchToChat?.call();
             },
           ),

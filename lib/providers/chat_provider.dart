@@ -66,13 +66,25 @@ class ChatProvider extends ChangeNotifier {
     provider.onProjectOpened = () { _onProjectChanged(); };
   }
 
-  /// 切换聊天/编程模式（自动新建对话，避免消息混乱）
+  /// 切换聊天/编程模式（查找已有同模式对话，避免重复新建）
   void setMode(bool isProgramming) {
     if (_isProgrammingMode == isProgramming) return;
     _isProgrammingMode = isProgramming;
-    // 新建一个对应模式的对话
-    final label = isProgramming ? '编程' : '聊天';
-    createSession(name: '$label 对话');
+    final modeLabel = isProgramming ? 'programming' : 'chat';
+    // 查找是否已有该模式的对话
+    final existing = _sessions.values
+        .where((s) => s['mode'] == modeLabel || (s['name'] as String?)?.startsWith(isProgramming ? '编程' : '聊天') == true)
+        .toList();
+    existing.sort((a, b) => (b['updated_at'] as String).compareTo(a['updated_at'] as String));
+
+    if (existing.isNotEmpty) {
+      // 复用最近的同模式对话
+      switchSession(existing.first['id'] as String);
+    } else {
+      // 没有则新建
+      final label = isProgramming ? '编程' : '聊天';
+      createSession(name: '$label 对话', mode: modeLabel);
+    }
     // 切模式时更新 system prompt
     if (_isProgrammingMode) {
       _updateSystemPrompt();
@@ -109,7 +121,7 @@ class ChatProvider extends ChangeNotifier {
   List<Map<String, dynamic>> get sessions => _sessions.values.toList()
     ..sort((a, b) => (b['updated_at'] as String).compareTo(a['updated_at'] as String));
 
-  String createSession({String? name}) {
+  String createSession({String? name, String? mode}) {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     // 新对话不继承任何项目路径，让用户在聊天页重新选择
     final session = {
@@ -118,6 +130,7 @@ class ChatProvider extends ChangeNotifier {
       'created_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
       'project_path': '',
+      if (mode != null) 'mode': mode,
     };
     _sessions[id] = session;
     _currentSessionId = id;
@@ -170,7 +183,7 @@ class ChatProvider extends ChangeNotifier {
     _saveSessionMeta();
     if (_currentSessionId == sessionId) {
       if (_sessions.isEmpty) {
-        createSession(name: '新对话');
+        createSession(name: '新对话', mode: _isProgrammingMode ? 'programming' : 'chat');
       } else {
         await switchSession(_sessions.keys.last);
       }
@@ -240,7 +253,7 @@ class ChatProvider extends ChangeNotifier {
       }
     } catch (_) {}
     if (_sessions.isEmpty) {
-      createSession(name: '默认对话');
+      createSession(name: '默认对话', mode: 'chat');
     }
   }
 
@@ -287,7 +300,7 @@ class ChatProvider extends ChangeNotifier {
           final json = jsonDecode(raw) as Map<String, dynamic>;
           if (json.containsKey('messages') && (json['messages'] as List).isNotEmpty) {
             // 创建新 session 并迁入
-            createSession(name: '迁移的对话');
+            createSession(name: '迁移的对话', mode: 'chat');
             _parseAndLoad(raw);
             await _save();
             debugPrint('项目记忆迁移成功');
@@ -712,7 +725,7 @@ class ChatProvider extends ChangeNotifier {
     try {
       final data = jsonDecode(jsonStr) as Map<String, dynamic>;
       if (!data.containsKey('messages')) return false;
-      createSession(name: '导入的对话');
+      createSession(name: '导入的对话', mode: 'chat');
       _parseAndLoad(jsonStr);
       await _save();
       notifyListeners();
