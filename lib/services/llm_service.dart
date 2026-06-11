@@ -229,19 +229,23 @@ class LlmService {
   }
 
   /// 非流式调用（支持 tool_call 返回）
-  Future<Map<String, dynamic>> chatComplete(List<Message> messages) async {
+  /// [includeTools] = false 时不发送工具定义（聊天模式）
+  Future<Map<String, dynamic>> chatComplete(List<Message> messages, {bool includeTools = true}) async {
     if (!isConfigured) {
       return {'error': '请先在设置中配置 API Key'};
     }
 
     final uri = Uri.parse('$_baseUrl/chat/completions');
-    final body = jsonEncode({
+    final bodyMap = <String, dynamic>{
       'model': _model,
       'messages': messages.map((m) => m.toApiMessage()).toList(),
-      'tools': _tools,
       'stream': false,
       'temperature': _temperature,
-    });
+    };
+    if (includeTools) {
+      bodyMap['tools'] = _tools;
+    }
+    final body = jsonEncode(bodyMap);
 
     try {
       final response = await http.post(

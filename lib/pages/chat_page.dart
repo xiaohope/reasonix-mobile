@@ -68,7 +68,9 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _showSkillPicker() async {
     await _skillService.refresh();
-    final skills = _skillService.skills;
+    final isProgramming = context.read<ChatProvider>().isProgrammingMode;
+    final skills = _skillService.skills.where((s) =>
+        isProgramming || s.category == 'general').toList();
     if (skills.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('暂无可用的技能'), duration: Duration(seconds: 2)),
@@ -158,6 +160,8 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final chatProvider = context.watch<ChatProvider>();
+    final isProgramming = chatProvider.isProgrammingMode;
     final hasProject = context.watch<ProjectProvider>().hasProject;
     final hasApiKey = context.watch<SettingsProvider>().hasApiKey;
 
@@ -167,27 +171,28 @@ class _ChatPageState extends State<ChatPage> {
       appBar: AppBar(
         title: GestureDetector(
           onTap: hasProject ? _pickProject : null,
-          child: hasProject
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          child: isProgramming
+              ? (hasProject
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.folder, size: 16),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            project.rootPath.split('/').last,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        Row(
+                          children: [
+                            const Icon(Icons.folder, size: 16),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                project.rootPath.split('/').last,
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.chevron_right, size: 14,
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Icon(Icons.chevron_right, size: 14,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
-                      ],
-                    ),
-                    Text(
+                        Text(
                       project.rootPath,
                       style: TextStyle(
                         fontSize: 10,
@@ -221,7 +226,7 @@ class _ChatPageState extends State<ChatPage> {
                 ),
         ),
         actions: [
-          if (!hasProject)
+          if (isProgramming && !hasProject)
             TextButton.icon(
               onPressed: _pickProject,
               icon: const Icon(Icons.folder_open, size: 16),
@@ -234,9 +239,10 @@ class _ChatPageState extends State<ChatPage> {
         child: Column(
         children: [
           // 提示条
-          if (!hasProject || !hasApiKey)
+          final needsProject = isProgramming && !hasProject;
+          if (needsProject || !hasApiKey)
             GestureDetector(
-              onTap: !hasProject ? _pickProject : null,
+              onTap: needsProject ? _pickProject : null,
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
@@ -245,23 +251,23 @@ class _ChatPageState extends State<ChatPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      !hasProject ? Icons.folder_open : Icons.key,
+                      needsProject ? Icons.folder_open : Icons.key,
                       size: 14,
                       color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      !hasProject
+                      needsProject
                           ? '点击选择项目目录'
                           : '🔑 先去「设置」页配置 API Key',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.primary,
-                        fontWeight: !hasProject ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: needsProject ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
-                    if (!hasProject) ...[
+                    if (needsProject) ...[
                       const SizedBox(width: 4),
                       Icon(Icons.chevron_right, size: 14,
                           color: Theme.of(context).colorScheme.primary),
@@ -344,12 +350,29 @@ class _ChatPageState extends State<ChatPage> {
               );
             },
           ),
+          // 模式切换栏
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+                bottom: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.08)),
+              ),
+            ),
+            child: Row(
+              children: [
+                _buildModeTab(context, '💬 聊天', false),
+                const SizedBox(width: 4),
+                _buildModeTab(context, '💻 编程', true),
+              ],
+            ),
+          ),
           // 输入框
           ChatInput(
             onSend: _sendMessage,
             onSendWithImage: _sendWithImage,
             onSkillTap: _showSkillPicker,
-            enabled: hasProject && hasApiKey && !context.watch<ChatProvider>().isProcessing,
+            enabled: (isProgramming ? hasProject : true) && hasApiKey && !chatProvider.isProcessing,
           ),
         ],
       ),
@@ -357,9 +380,81 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  Widget _buildModeTab(BuildContext context, String label, bool isProgramming) {
+    final active = context.watch<ChatProvider>().isProgrammingMode == isProgramming;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          context.read<ChatProvider>().setMode(isProgramming);
+          // 切换到编程模式且没有项目 → 弹出项目选择
+          if (isProgramming && !context.read<ProjectProvider>().hasProject) {
+            _pickProject();
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: active
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                  color: active
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState(BuildContext context) {
+    final isProgramming = context.watch<ChatProvider>().isProgrammingMode;
     final hasProject = context.watch<ProjectProvider>().hasProject;
     final hasApiKey = context.watch<SettingsProvider>().hasApiKey;
+
+    if (!isProgramming) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.chat_bubble_outline, size: 48,
+                color: Color(0xFF6C63FF)),
+            const SizedBox(height: 16),
+            Text(
+              '💬 聊天模式',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                !hasApiKey
+                    ? '配好 API Key 后就可以聊天了'
+                    : '有什么想问的吗？直接输入就好',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Center(
       child: Column(
@@ -372,7 +467,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            '手机上的 AI 编程助手',
+            '💻 编程模式',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
@@ -382,7 +477,7 @@ class _ChatPageState extends State<ChatPage> {
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               !hasProject
-                  ? '先选一个项目目录，然后就可以\n用 AI 帮你读代码、改文件了'
+                  ? '先选一个项目目录，让 AI 帮你\n读代码、改文件'
                   : !hasApiKey
                       ? '配好 API Key 后\n在这里下指令就好'
                       : '选一个项目，开始编程吧',

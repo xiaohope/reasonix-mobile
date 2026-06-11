@@ -19,6 +19,7 @@ class ChatProvider extends ChangeNotifier {
   bool _isProcessing = false;
   bool _isStreaming = false;
   bool _stopRequested = false;
+  bool _isProgrammingMode = true;  // 默认编程模式
   int _totalPromptTokens = 0;
   int _totalCompletionTokens = 0;
   int _totalCacheHitTokens = 0;
@@ -38,6 +39,7 @@ class ChatProvider extends ChangeNotifier {
   Message? get streamingMessage => _streamingMessage;
   bool get isProcessing => _isProcessing;
   bool get isStreaming => _isStreaming;
+  bool get isProgrammingMode => _isProgrammingMode;
 
   String get usageSummary {
     final parts = <String>[];
@@ -61,6 +63,19 @@ class ChatProvider extends ChangeNotifier {
   void initProjectProvider(ProjectProvider provider) {
     _projectProvider = provider;
     provider.onProjectOpened = () { _onProjectChanged(); };
+  }
+
+  /// 切换聊天/编程模式
+  void setMode(bool isProgramming) {
+    if (_isProgrammingMode == isProgramming) return;
+    _isProgrammingMode = isProgramming;
+    // 切模式时更新 system prompt
+    if (_isProgrammingMode) {
+      _updateSystemPrompt();
+    } else {
+      _updateSystemPrompt(isProgramming: false);
+    }
+    notifyListeners();
   }
 
   void initServices(LlmService llm, ToolEngine engine) {
@@ -475,19 +490,34 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 更新系统提示（项目路径变化时）
-  void _updateSystemPrompt() {
-    final projectPath = _projectProvider?.rootPath ?? '';
-    final systemPrompt = projectPath.isNotEmpty
-        ? '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。\n\n当前项目根目录: $projectPath\n所有文件操作都基于此目录，使用相对路径即可。'
-        : '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。';
+  /// 更新系统提示
+  /// [isProgramming] 可选覆盖，不传则用当前模式
+  void _updateSystemPrompt({bool? isProgramming}) {
+    final programming = isProgramming ?? _isProgrammingMode;
+    final systemPrompt = programming
+        ? _buildProgrammingPrompt()
+        : '';
 
     final idx = _messages.indexWhere((m) => m.role == 'system');
-    if (idx >= 0) {
-      _messages[idx] = Message(role: 'system', content: systemPrompt);
-    } else if (_messages.isNotEmpty) {
-      _messages.insert(0, Message(role: 'system', content: systemPrompt));
+    if (programming) {
+      if (idx >= 0) {
+        _messages[idx] = Message(role: 'system', content: systemPrompt);
+      } else if (_messages.isNotEmpty) {
+        _messages.insert(0, Message(role: 'system', content: systemPrompt));
+      }
+    } else {
+      // 聊天模式 → 移除 system prompt
+      if (idx >= 0) {
+        _messages.removeAt(idx);
+      }
     }
+  }
+
+  String _buildProgrammingPrompt() {
+    final projectPath = _projectProvider?.rootPath ?? '';
+    return projectPath.isNotEmpty
+        ? '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。\n\n当前项目根目录: $projectPath\n所有文件操作都基于此目录，使用相对路径即可。'
+        : '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。';
   }
 
   Future<void> sendMessage(String text) async {
@@ -497,26 +527,41 @@ class ChatProvider extends ChangeNotifier {
       _isProcessing = false;
       notifyListeners();
     }
-    if (_llmService == null || _toolEngine == null) return;
+    if (_llmService == null) return;
 
-    // 动态构建 system prompt，包含项目路径信息
-    final projectPath = _projectProvider?.rootPath ?? '';
-    final systemPrompt = projectPath.isNotEmpty
-        ? '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。\n\n当前项目根目录: $projectPath\n所有文件操作都基于此目录，使用相对路径即可。'
-        : '你是 Reasonix，一个手机上的 AI 编程助手。你由 DeepSeek 提供底层 AI 能力，但你叫 Reasonix。你擅长阅读代码、编辑文件、执行命令、管理 Git 仓库。请用中文回答，使用工具时直接调用工具，不要说"让我看看"。';
-
-    if (!_messages.any((m) => m.role == 'system')) {
-      _messages.add(Message(role: 'system', content: systemPrompt));
-    } else {
-      final idx = _messages.indexWhere((m) => m.role == 'system');
-      if (idx >= 0) {
-        _messages[idx] = Message(role: 'system', content: systemPrompt);
-      }
-    }
     _messages.add(Message(role: 'user', content: text.trim()));
     _isProcessing = true;
     _stopRequested = false;
     notifyListeners();
+
+    if (!_isProgrammingMode) {
+      // ── 聊天模式：纯聊天，不带工具，不加 system prompt ──
+      try {
+        final response = await _llmService!.chatComplete(_messages, includeTools: false);
+        if (response.containsKey('error')) {
+          _messages.add(Message(role: 'assistant', content: response['error'] as String));
+        } else {
+          final choice = response['choices']?[0] as Map<String, dynamic>?;
+          final msg = choice?['message'] as Map<String, dynamic>?;
+          final content = msg?['content'] as String? ?? '';
+          if (content.isNotEmpty) {
+            _messages.add(Message(role: 'assistant', content: content));
+          }
+        }
+        _save();
+      } catch (e) {
+        _messages.add(Message(role: 'assistant', content: '出错: $e'));
+        _save();
+      } finally {
+        _isProcessing = false;
+        notifyListeners();
+      }
+      return;
+    }
+
+    // ── 编程模式：带 system prompt + 工具调用 ──
+    if (_toolEngine == null) { _isProcessing = false; notifyListeners(); return; }
+    _updateSystemPrompt();
     try {
       final maxTurns = 10;
       for (int turn = 0; turn < maxTurns; turn++) {

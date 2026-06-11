@@ -14,6 +14,7 @@ class Skill {
   final String description;
   final String prompt;       /// 注入到对话的指令文本
   final String? icon;        /// Emoji 图标，如 '🔍'
+  final String category;     /// 'general'（通用）| 'programming'（编程）
 
   const Skill({
     required this.id,
@@ -21,6 +22,7 @@ class Skill {
     required this.description,
     required this.prompt,
     this.icon,
+    this.category = 'general',
   });
 
   // ── 序列化 → .skill.md 格式 ──
@@ -32,6 +34,7 @@ class Skill {
     buf.writeln('name: $name');
     if (description.isNotEmpty) buf.writeln('description: $description');
     if (icon != null) buf.writeln('icon: $icon');
+    if (category != 'general') buf.writeln('category: $category');
     buf.writeln('---');
     buf.write(prompt);
     return buf.toString();
@@ -60,6 +63,7 @@ class Skill {
       if (endIdx > 0) {
         // 解析 frontmatter 行
         String? frontmatterPrompt;
+        String parsedCategory = 'general';
         for (int i = 1; i < endIdx; i++) {
           final line = lines[i].trim();
           if (line.isEmpty) continue;
@@ -71,6 +75,7 @@ class Skill {
               case 'name': name = value; break;
               case 'description': description = value; break;
               case 'icon': icon = value.isNotEmpty ? value : null; break;
+              case 'category': parsedCategory = value; break;
               case 'prompt': frontmatterPrompt = value; break;
             }
           }
@@ -95,6 +100,7 @@ class Skill {
       description: description,
       prompt: prompt,
       icon: icon,
+      category: parsedCategory,
     );
   }
 

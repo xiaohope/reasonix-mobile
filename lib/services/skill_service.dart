@@ -27,12 +27,14 @@ class SkillService {
           '4) 安全性问题\n5) 可维护性\n\n'
           '逐一列出发现的问题，标注严重程度，并给出修改建议。',
       icon: '🔍',
+      category: 'programming',
     ),
     Skill(
       id: 'fix_bugs', name: '修复Bug',
       description: '分析和修复代码中的 Bug',
       prompt: '请分析这段代码中的 Bug，解释问题原因，并给出修复后的代码。',
       icon: '🐛',
+      category: 'programming',
     ),
     Skill(
       id: 'explain', name: '解释代码',
@@ -46,18 +48,21 @@ class SkillService {
       prompt: '请对这个代码进行重构，提高可读性和可维护性。\n'
           '保持功能不变，优化变量命名、提取公共逻辑、简化复杂条件等。',
       icon: '🛠️',
+      category: 'programming',
     ),
     Skill(
       id: 'add_comments', name: '添加注释',
       description: '为代码添加中文注释',
       prompt: '请为以下代码添加详细的中文注释，解释每一段的功能和关键逻辑。',
       icon: '💬',
+      category: 'programming',
     ),
     Skill(
       id: 'write_test', name: '写测试',
       description: '为代码生成单元测试',
       prompt: '请为以下代码编写单元测试。\n使用合适的测试框架，覆盖正常路径和边界情况。',
       icon: '🧪',
+      category: 'programming',
     ),
     Skill(
       id: 'optimize', name: '性能优化',
@@ -65,6 +70,7 @@ class SkillService {
       prompt: '请分析这段代码的性能瓶颈，给出优化建议。\n'
           '关注：时间复杂度、内存使用、不必要的计算、IO 操作等。',
       icon: '⚡',
+      category: 'programming',
     ),
     Skill(
       id: 'security', name: '安全审查',
@@ -73,6 +79,7 @@ class SkillService {
           '1) 输入验证\n2) SQL/命令注入\n3) 路径遍历\n'
           '4) 敏感信息泄露\n5) 认证授权\n\n列出所有风险点及修复方案。',
       icon: '🔒',
+      category: 'programming',
     ),
     Skill(
       id: 'super-dad', name: '超级奶爸',
