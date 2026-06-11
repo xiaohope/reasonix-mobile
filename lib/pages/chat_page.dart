@@ -169,62 +169,7 @@ class _ChatPageState extends State<ChatPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: GestureDetector(
-          onTap: hasProject ? _pickProject : null,
-          child: isProgramming
-              ? (hasProject
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.folder, size: 16),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                project.rootPath.split('/').last,
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(Icons.chevron_right, size: 14,
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
-                          ],
-                        ),
-                        Text(
-                      project.rootPath,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontFamily: 'monospace',
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    const Text('Reasonix'),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Mobile',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Theme.of(context).colorScheme.secondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-        ),
+        title: _buildTitle(context, isProgramming, hasProject, project),
         actions: [
           if (isProgramming && !hasProject)
             TextButton.icon(
@@ -377,6 +322,64 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
       ),
+    );
+  }
+
+  Widget _buildTitle(BuildContext context, bool isProgramming, bool hasProject, ProjectProvider project) {
+    return GestureDetector(
+      onTap: isProgramming && hasProject ? _pickProject : null,
+      child: isProgramming && hasProject
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.folder, size: 16),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        project.rootPath.split('/').last,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right, size: 14,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
+                  ],
+                ),
+                Text(
+                  project.rootPath,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                const Text('Reasonix'),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Mobile',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Theme.of(context).colorScheme.secondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 

@@ -60,10 +60,10 @@ class Skill {
         }
       }
 
+      String parsedCategory = 'general';
       if (endIdx > 0) {
         // 解析 frontmatter 行
         String? frontmatterPrompt;
-        String parsedCategory = 'general';
         for (int i = 1; i < endIdx; i++) {
           final line = lines[i].trim();
           if (line.isEmpty) continue;
