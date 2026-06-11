@@ -209,6 +209,21 @@ class MessageBubble extends StatelessWidget {
         continue;
       }
 
+      // 检测图片 Markdown: ![alt](url)
+      final imgMatch = RegExp(r'!\[(.*?)\]\((https?://[^\s)]+)\)').firstMatch(line.trim());
+      if (imgMatch != null) {
+        final url = imgMatch.group(2)!;
+        children.add(_buildImage(context, url, imgMatch.group(1)));
+        continue;
+      }
+
+      // 检测独立图片 URL（行内容只有 URL 且以图片扩展名结尾）
+      final urlTrimmed = line.trim();
+      if (RegExp(r'^https?://\S+\.(jpg|jpeg|png|gif|webp|bmp)(\?\S*)?$', caseSensitive: false).hasMatch(urlTrimmed)) {
+        children.add(_buildImage(context, urlTrimmed, null));
+        continue;
+      }
+
       children.add(_buildInlineText(context, line));
     }
 
@@ -219,6 +234,63 @@ class MessageBubble extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
+    );
+  }
+
+  /// 图片渲染
+  Widget _buildImage(BuildContext context, String url, String? alt) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: GestureDetector(
+          onTap: () => _openUrl(url),
+          child: Image.network(
+            url,
+            width: double.infinity,
+            fit: BoxFit.contain,
+            loadingBuilder: (ctx, child, progress) {
+              if (progress == null) return child;
+              return Container(
+                height: 160,
+                color: Theme.of(context).colorScheme.surface,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(strokeWidth: 2),
+                      if (alt != null && alt.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(alt, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+            errorBuilder: (ctx, error, stack) => Container(
+              height: 80,
+              color: Theme.of(context).colorScheme.surface,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.broken_image, size: 20, color: Colors.grey),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        alt ?? '图片加载失败',
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

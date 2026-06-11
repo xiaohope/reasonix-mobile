@@ -377,6 +377,46 @@ class _ChatPageState extends State<ChatPage> {
             onKnowledgeTap: _showKnowledgePicker,
             enabled: (isProgramming ? hasProject : true) && hasApiKey && !chatProvider.isProcessing,
           ),
+          // 模型切换
+          Consumer<SettingsProvider>(
+            builder: (context, s, _) {
+              if (s.providers.length <= 1) return const SizedBox.shrink();
+              return Container(
+                padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.08))),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.smart_toy, size: 14,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: s.selectedProviderId,
+                          isDense: true,
+                          isExpanded: true,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                          items: s.providers.map((p) => DropdownMenuItem(
+                            value: p.id,
+                            child: Text('${p.name} — ${p.model}',
+                                style: const TextStyle(fontSize: 12)),
+                          )).toList(),
+                          onChanged: (id) {
+                            if (id != null) s.selectProvider(id);
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
       ),
