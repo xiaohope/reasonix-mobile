@@ -164,6 +164,7 @@ class _ChatPageState extends State<ChatPage> {
     final isProgramming = chatProvider.isProgrammingMode;
     final hasProject = context.watch<ProjectProvider>().hasProject;
     final hasApiKey = context.watch<SettingsProvider>().hasApiKey;
+    final needsProject = isProgramming && !hasProject;
 
     final project = context.watch<ProjectProvider>();
 
@@ -184,7 +185,6 @@ class _ChatPageState extends State<ChatPage> {
         child: Column(
         children: [
           // 提示条
-          final needsProject = isProgramming && !hasProject;
           if (needsProject || !hasApiKey)
             GestureDetector(
               onTap: needsProject ? _pickProject : null,

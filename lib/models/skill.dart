@@ -50,6 +50,7 @@ class Skill {
 
     // 解析 frontmatter（--- 包围的 YAML 风格键值对）
     final lines = content.split('\n');
+    String parsedCategory = 'general';
     if (lines.isNotEmpty && lines[0].trim() == '---') {
       // 找到结束的 ---
       int endIdx = -1;
@@ -60,7 +61,6 @@ class Skill {
         }
       }
 
-      String parsedCategory = 'general';
       if (endIdx > 0) {
         // 解析 frontmatter 行
         String? frontmatterPrompt;
