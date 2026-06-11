@@ -7,6 +7,7 @@ import '../models/message.dart';
 import '../models/tool_call.dart';
 import '../models/usage_info.dart';
 import '../models/skill.dart';
+import '../models/knowledge.dart';
 import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
 import 'project_provider.dart';
@@ -616,6 +617,11 @@ class ChatProvider extends ChangeNotifier {
   /// 注入技能指令 — 将技能的 prompt 作为用户消息自动发送
   void injectSkill(Skill skill) {
     sendMessage(skill.prompt);
+  }
+
+  /// 注入知识文档 — 将知识内容作为参考信息发送
+  void injectKnowledge(Knowledge knowledge) {
+    sendMessage('请参考以下知识来回答：\n\n${knowledge.content}');
   }
 
   void _addToolResult(ToolCall call, String result) {

@@ -6,8 +6,10 @@ import '../providers/chat_provider.dart';
 import '../services/terminal_service.dart';
 import '../services/llm_service.dart';
 import '../services/skill_service.dart';
+import '../services/knowledge_service.dart';
 import 'about_page.dart';
 import 'skills_manage_page.dart';
+import 'knowledge_manage_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 设置页面
@@ -20,6 +22,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final SkillService _skillService = SkillService();
+  final KnowledgeService _knowledgeService = KnowledgeService();
   String _envInfo = '';
   final _apiKeyController = TextEditingController();
   final _apiUrlController = TextEditingController();
@@ -272,6 +275,23 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => SkillsManagePage(skillService: _skillService),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 知识库 ──
+          _sectionTitle(context, '知识库'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.menu_book, color: Color(0xFF6C63FF)),
+              title: const Text('知识库管理'),
+              subtitle: const Text('管理参考文档，供 AI 阅读参考'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => KnowledgeManagePage(service: _knowledgeService),
                 ),
               ),
             ),

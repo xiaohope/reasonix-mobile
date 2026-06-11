@@ -9,7 +9,9 @@ import '../providers/terminal_provider.dart';
 import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
 import '../services/skill_service.dart';
+import '../services/knowledge_service.dart';
 import '../models/skill.dart';
+import '../models/knowledge.dart';
 import '../widgets/project_picker.dart';
 
 /// 聊天页面 — Reasonix 核心对话界面
@@ -24,6 +26,7 @@ class _ChatPageState extends State<ChatPage> {
   final _scrollController = ScrollController();
   final LlmService _llmService = LlmService();
   final SkillService _skillService = SkillService();
+  final KnowledgeService _knowledgeService = KnowledgeService();
   ToolEngine? _toolEngine;
   bool _skillsLoaded = false;
 
@@ -51,6 +54,7 @@ class _ChatPageState extends State<ChatPage> {
     if (!_skillsLoaded) {
       _skillsLoaded = true;
       _skillService.init();
+      _knowledgeService.init();
     }
   }
 
@@ -114,6 +118,59 @@ class _ChatPageState extends State<ChatPage> {
               onTap: () {
                 Navigator.of(ctx).pop();
                 context.read<ChatProvider>().injectSkill(skill);
+              },
+            )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showKnowledgePicker() async {
+    await _knowledgeService.refresh();
+    final items = _knowledgeService.items;
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('知识库为空，先去设置页添加知识'), duration: Duration(seconds: 2)),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.menu_book, size: 18),
+                  const SizedBox(width: 8),
+                  Text('选择知识文档', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => Navigator.of(ctx).pop()),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ...items.map((item) => ListTile(
+              leading: const Icon(Icons.menu_book, color: Color(0xFF6C63FF)),
+              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w500)),
+              subtitle: Text(
+                item.description.isNotEmpty ? item.description : '${item.content.length} 字',
+                style: const TextStyle(fontSize: 12),
+              ),
+              trailing: const Icon(Icons.chevron_right, size: 18),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                context.read<ChatProvider>().injectKnowledge(item);
               },
             )),
             const SizedBox(height: 8),
@@ -317,6 +374,7 @@ class _ChatPageState extends State<ChatPage> {
             onSend: _sendMessage,
             onSendWithImage: _sendWithImage,
             onSkillTap: _showSkillPicker,
+            onKnowledgeTap: _showKnowledgePicker,
             enabled: (isProgramming ? hasProject : true) && hasApiKey && !chatProvider.isProcessing,
           ),
         ],

@@ -7,12 +7,14 @@ class ChatInput extends StatefulWidget {
   final Function(String) onSend;
   final Function({String? text, File? image})? onSendWithImage;
   final VoidCallback? onSkillTap;
+  final VoidCallback? onKnowledgeTap;
   final bool enabled;
   const ChatInput({
     super.key,
     required this.onSend,
     this.onSendWithImage,
     this.onSkillTap,
+    this.onKnowledgeTap,
     this.enabled = true,
   });
   @override
@@ -93,6 +95,13 @@ class _ChatInputState extends State<ChatInput> {
               icon: const Icon(Icons.auto_awesome, size: 20),
               tooltip: '技能(Skills)',
               color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.7),
+            ),
+            // 知识库按钮
+            IconButton(
+              onPressed: (widget.enabled && widget.onKnowledgeTap != null) ? widget.onKnowledgeTap : null,
+              icon: const Icon(Icons.menu_book, size: 20),
+              tooltip: '知识库',
+              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.7),
             ),
             Expanded(child: TextField(
               controller: _controller, focusNode: _focusNode,
