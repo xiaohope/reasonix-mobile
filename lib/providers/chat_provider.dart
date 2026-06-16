@@ -9,6 +9,7 @@ import '../models/usage_info.dart';
 import '../models/skill.dart';
 import '../models/knowledge.dart';
 import '../services/llm_service.dart';
+import '../services/skill_service.dart';
 import '../services/tool_engine.dart';
 import 'project_provider.dart';
 
@@ -633,10 +634,16 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  /// 激活技能 — 注入上下文，不发消息，用户后续输入自己的指令
+  /// 注入技能 — 内置技能直接发送，用户自定义技能注入上下文
   void injectSkill(Skill skill) {
-    _activeSkill = skill;
-    notifyListeners();
+    if (SkillService.isBuiltIn(skill.id)) {
+      // 内置技能：直接发送全文（如代码审查、修复Bug等完整指令）
+      sendMessage(skill.prompt);
+    } else {
+      // 用户自定义技能：注入上下文，用户后续输入自己的指令
+      _activeSkill = skill;
+      notifyListeners();
+    }
   }
 
   /// 停用当前技能

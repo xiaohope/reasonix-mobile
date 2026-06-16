@@ -17,6 +17,15 @@ class SkillService {
 
   List<Skill> get skills => List.unmodifiable(_skills);
 
+  /// 内置技能的 ID 集合
+  static const Set<String> builtInSkillIds = {
+    'code_review', 'fix_bugs', 'explain', 'refactor',
+    'add_comments', 'write_test', 'optimize', 'security', 'super-dad',
+  };
+
+  /// 判断是否为内置技能
+  static bool isBuiltIn(String id) => builtInSkillIds.contains(id);
+
   // ── 默认内置技能 ──
   static final List<Skill> _defaultSkills = [
     Skill(
