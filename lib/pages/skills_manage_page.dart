@@ -125,120 +125,29 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
   }
 
   Future<void> _importSkillFile() async {
-    // 选择导入方式
-    final method = await showModalBottomSheet<String>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.folder_open),
-            title: const Text('浏览文件'),
-            subtitle: const Text('从手机目录选择 .skill.md 文件'),
-            onTap: () => Navigator.pop(ctx, 'file'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.content_paste),
-            title: const Text('粘贴内容'),
-            subtitle: const Text('手动粘贴 .skill.md 内容'),
-            onTap: () => Navigator.pop(ctx, 'paste'),
-          ),
-        ]),
-      ),
-    );
-    if (method == null) return;
-
-    // ── 浏览文件 ──
-    if (method == 'file') {
-      final path = await _pickSkillFile();
-      if (path == null) return;
-      final file = File(path);
-      if (!await file.exists()) return;
-      final content = await file.readAsString();
-      final id = file.uri.pathSegments.last.replaceAll('.skill.md', '');
-      Skill skill;
-      try {
-        skill = Skill.fromMarkdown(content, id: id);
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ 解析失败: $e')));
-        return;
-      }
-      if (skill.name.isEmpty || skill.prompt.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ 缺少 name 或 prompt')));
-        return;
-      }
-      await widget.skillService.upsertSkill(skill);
-      await _loadSkills();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ 已导入: ${skill.name}')));
-      return;
-    }
-
-    // ── 粘贴内容 ──
-    final ctrl = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('导入 .skill.md'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('粘贴 .skill.md 文件的内容：', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
-              const SizedBox(height: 8),
-              TextField(
-                controller: ctrl, maxLines: 10, minLines: 6,
-                decoration: const InputDecoration(
-                  hintText: '---\nname: 技能名称\ndescription: ...\nicon: 🔍\n---\n\n指令内容...',
-                  border: OutlineInputBorder(), contentPadding: EdgeInsets.all(12),
-                ),
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()), child: const Text('导入')),
-        ],
-      ),
-    );
-    if (result == null || result.isEmpty) return;
-
-    // 尝试解析
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final path = await _pickSkillFile();
+    if (path == null) return;
+    final file = File(path);
+    if (!await file.exists()) return;
+    final content = await file.readAsString();
+    final id = file.uri.pathSegments.last.replaceAll('.skill.md', '');
     Skill skill;
     try {
-      skill = Skill.fromMarkdown(result, id: id);
+      skill = Skill.fromMarkdown(content, id: id);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ 解析失败，请检查格式: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ 解析失败: $e')));
       return;
     }
-
-    // 验证必填字段
     if (skill.name.isEmpty || skill.prompt.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ 缺少 name 或 prompt，请检查 frontmatter 格式')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ 缺少 name 或 prompt')));
       return;
     }
-
     await widget.skillService.upsertSkill(skill);
     await _loadSkills();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('✅ 已导入: ${skill.name}')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ 已导入: ${skill.name}')));
   }
 
   Future<void> _addSkill() async {
