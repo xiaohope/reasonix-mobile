@@ -21,6 +21,7 @@ class ChatProvider extends ChangeNotifier {
   bool _isStreaming = false;
   bool _stopRequested = false;
   bool _isProgrammingMode = false;  // 默认聊天模式
+  Skill? _activeSkill;              /// 当前激活的技能（注入上下文，不发消息）
   int _totalPromptTokens = 0;
   int _totalCompletionTokens = 0;
   int _totalCacheHitTokens = 0;
@@ -41,6 +42,7 @@ class ChatProvider extends ChangeNotifier {
   bool get isProcessing => _isProcessing;
   bool get isStreaming => _isStreaming;
   bool get isProgrammingMode => _isProgrammingMode;
+  Skill? get activeSkill => _activeSkill;
 
   String get usageSummary {
     final parts = <String>[];
@@ -541,7 +543,13 @@ class ChatProvider extends ChangeNotifier {
     }
     if (_llmService == null) return;
 
-    _messages.add(Message(role: 'user', content: text.trim(), imageBase64: imageBase64));
+    // 如果有激活的技能，将技能指令作为上下文合并到用户消息
+    String finalText = text.trim();
+    if (_activeSkill != null) {
+      finalText = '${_activeSkill!.prompt}\n\n---\n\n$finalText';
+      _activeSkill = null;
+    }
+    _messages.add(Message(role: 'user', content: finalText, imageBase64: imageBase64));
     _isProcessing = true;
     _stopRequested = false;
     notifyListeners();
@@ -625,9 +633,17 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  /// 注入技能指令 — 将技能的 prompt 作为用户消息自动发送
+  /// 激活技能 — 注入上下文，不发消息，用户后续输入自己的指令
   void injectSkill(Skill skill) {
-    sendMessage(skill.prompt);
+    _activeSkill = skill;
+    notifyListeners();
+  }
+
+  /// 停用当前技能
+  void deactivateSkill() {
+    if (_activeSkill == null) return;
+    _activeSkill = null;
+    notifyListeners();
   }
 
   /// 注入知识文档 — 将知识内容作为参考信息发送

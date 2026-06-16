@@ -369,6 +369,43 @@ class _ChatPageState extends State<ChatPage> {
               ],
             ),
           ),
+          // 激活的技能指示
+          Consumer<ChatProvider>(
+            builder: (context, chat, _) {
+              final skill = chat.activeSkill;
+              if (skill == null) return const SizedBox.shrink();
+              return Container(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(skill.icon ?? '🧠', style: const TextStyle(fontSize: 14)),
+                          const SizedBox(width: 4),
+                          Text('${skill.name} 已加载 — 输入指令后自动使用',
+                              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.secondary)),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => chat.deactivateSkill(),
+                            child: Icon(Icons.close, size: 14,
+                                color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.6)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           // 输入框
           ChatInput(
             onSend: _sendMessage,

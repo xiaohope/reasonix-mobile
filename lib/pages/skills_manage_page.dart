@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/skill.dart';
 import '../services/skill_service.dart';
@@ -113,7 +114,71 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
   }
 
   /// 导入 .skill.md 文件 — 粘贴 markdown 内容，自动解析并保存
+  /// 文件浏览器 — 选择 .skill.md 文件
+  Future<String?> _pickSkillFile() async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => _SkillFilePicker(initialPath: '/storage/emulated/0'),
+      ),
+    );
+    return result;
+  }
+
   Future<void> _importSkillFile() async {
+    // 选择导入方式
+    final method = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.folder_open),
+            title: const Text('浏览文件'),
+            subtitle: const Text('从手机目录选择 .skill.md 文件'),
+            onTap: () => Navigator.pop(ctx, 'file'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.content_paste),
+            title: const Text('粘贴内容'),
+            subtitle: const Text('手动粘贴 .skill.md 内容'),
+            onTap: () => Navigator.pop(ctx, 'paste'),
+          ),
+        ]),
+      ),
+    );
+    if (method == null) return;
+
+    // ── 浏览文件 ──
+    if (method == 'file') {
+      final path = await _pickSkillFile();
+      if (path == null) return;
+      final file = File(path);
+      if (!await file.exists()) return;
+      final content = await file.readAsString();
+      final id = file.uri.pathSegments.last.replaceAll('.skill.md', '');
+      Skill skill;
+      try {
+        skill = Skill.fromMarkdown(content, id: id);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ 解析失败: $e')));
+        return;
+      }
+      if (skill.name.isEmpty || skill.prompt.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ 缺少 name 或 prompt')));
+        return;
+      }
+      await widget.skillService.upsertSkill(skill);
+      await _loadSkills();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ 已导入: ${skill.name}')));
+      return;
+    }
+
+    // ── 粘贴内容 ──
     final ctrl = TextEditingController();
     final result = await showDialog<String>(
       context: context,
@@ -125,22 +190,13 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '粘贴 .skill.md 文件的内容：',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
+              Text('粘贴 .skill.md 文件的内容：', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
               const SizedBox(height: 8),
               TextField(
-                controller: ctrl,
-                maxLines: 10,
-                minLines: 6,
+                controller: ctrl, maxLines: 10, minLines: 6,
                 decoration: const InputDecoration(
                   hintText: '---\nname: 技能名称\ndescription: ...\nicon: 🔍\n---\n\n指令内容...',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.all(12),
+                  border: OutlineInputBorder(), contentPadding: EdgeInsets.all(12),
                 ),
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
               ),
@@ -149,14 +205,10 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
-            child: const Text('导入'),
-          ),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()), child: const Text('导入')),
         ],
       ),
     );
-
     if (result == null || result.isEmpty) return;
 
     // 尝试解析
@@ -341,6 +393,70 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
       description: result['description'] ?? '',
       prompt: result['prompt']!,
       icon: result['icon']?.isNotEmpty == true ? result['icon'] : null,
+    );
+  }
+}
+
+/// 技能文件选择器
+class _SkillFilePicker extends StatefulWidget {
+  final String initialPath;
+  const _SkillFilePicker({required this.initialPath});
+  @override
+  State<_SkillFilePicker> createState() => _SkillFilePickerState();
+}
+
+class _SkillFilePickerState extends State<_SkillFilePicker> {
+  late String _currentPath;
+  List<FileSystemEntity> _entries = [];
+
+  @override
+  void initState() { super.initState(); _currentPath = widget.initialPath; _load(); }
+
+  void _load() {
+    try {
+      final dir = Directory(_currentPath);
+      if (!dir.existsSync()) return;
+      setState(() { _entries = dir.listSync()..sort((a, b) {
+        final ad = a is Directory, bd = b is Directory;
+        if (ad && !bd) return -1; if (!ad && bd) return 1;
+        return a.path.compareTo(b.path);
+      }); });
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_currentPath.split('/').last, style: const TextStyle(fontSize: 16)),
+        actions: [
+          if (_currentPath != '/')
+            TextButton(onPressed: () { setState(() { _currentPath = Directory(_currentPath).parent.path; }); _load(); }, child: const Text('返回上级')),
+        ],
+      ),
+      body: Column(children: [
+        Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), color: Theme.of(context).colorScheme.surface,
+          child: Text(_currentPath, style: const TextStyle(fontFamily: 'monospace', fontSize: 12), overflow: TextOverflow.ellipsis)),
+        Expanded(child: ListView.builder(itemCount: _entries.length, itemBuilder: (c, i) {
+          final e = _entries[i];
+          final name = e.uri.pathSegments.last;
+          final isDir = e is Directory;
+          final isSkillFile = name.endsWith('.skill.md');
+          if (name.startsWith('.') || (isDir && (name == 'node_modules' || name == '.git' || name == '.dart_tool'))) return const SizedBox();
+          return ListTile(dense: true,
+            leading: Icon(isDir ? Icons.folder : (isSkillFile ? Icons.auto_awesome : Icons.insert_drive_file),
+                size: 20,
+                color: isDir ? const Color(0xFFF9E2AF) : (isSkillFile ? const Color(0xFF6C63FF) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3))),
+            title: Text(name, style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+            subtitle: isSkillFile ? const Text('点击导入此技能', style: TextStyle(fontSize: 11)) : null,
+            trailing: isDir ? const Icon(Icons.chevron_right, size: 18) : null,
+            onTap: () {
+              if (isDir) { setState(() { _currentPath = e.path; }); _load(); }
+              else if (isSkillFile) { Navigator.of(context).pop(e.path); }
+            },
+          );
+        })),
+      ]),
     );
   }
 }
