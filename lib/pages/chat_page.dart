@@ -9,9 +9,7 @@ import '../providers/terminal_provider.dart';
 import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
 import '../services/skill_service.dart';
-import '../services/knowledge_service.dart';
 import '../models/skill.dart';
-import '../models/knowledge.dart';
 import '../widgets/project_picker.dart';
 
 /// 聊天页面 — Reasonix 核心对话界面
@@ -26,7 +24,6 @@ class _ChatPageState extends State<ChatPage> {
   final _scrollController = ScrollController();
   final LlmService _llmService = LlmService();
   final SkillService _skillService = SkillService();
-  final KnowledgeService _knowledgeService = KnowledgeService();
   ToolEngine? _toolEngine;
   bool _skillsLoaded = false;
 
@@ -54,7 +51,6 @@ class _ChatPageState extends State<ChatPage> {
     if (!_skillsLoaded) {
       _skillsLoaded = true;
       _skillService.init();
-      _knowledgeService.init();
     }
   }
 
@@ -72,9 +68,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _showSkillPicker() async {
     await _skillService.refresh();
-    final isProgramming = context.read<ChatProvider>().isProgrammingMode;
-    final skills = _skillService.skills.where((s) =>
-        isProgramming || s.category == 'general').toList();
+    final skills = _skillService.skills;
     if (skills.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('暂无可用的技能'), duration: Duration(seconds: 2)),
@@ -88,95 +82,64 @@ class _ChatPageState extends State<ChatPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 标题
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  const Icon(Icons.auto_awesome, size: 18),
-                  const SizedBox(width: 8),
-                  Text('选择技能', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.of(ctx).pop(),
+      builder: (ctx) {
+        final chat = context.read<ChatProvider>();
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 标题
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 18),
+                    const SizedBox(width: 8),
+                    Text('选择技能', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                    const Spacer(),
+                    if (chat.activeSkills.isNotEmpty)
+                      TextButton(
+                        onPressed: () {
+                          chat.deactivateAllSkills();
+                          Navigator.of(ctx).pop();
+                        },
+                        child: const Text('全部清除', style: TextStyle(fontSize: 12)),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // 技能列表
+              ...skills.map((skill) {
+                final isActive = chat.activeSkills.any((s) => s.id == skill.id);
+                return ListTile(
+                  leading: Text(skill.icon ?? '🧠', style: const TextStyle(fontSize: 24)),
+                  title: Text(skill.name, style: TextStyle(
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                    color: isActive ? Theme.of(context).colorScheme.primary : null,
+                  )),
+                  subtitle: Text(skill.description, style: const TextStyle(fontSize: 12)),
+                  trailing: Icon(
+                    isActive ? Icons.check_circle : Icons.radio_button_unchecked,
+                    size: 20,
+                    color: isActive ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
                   ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            // 技能列表
-            ...skills.map((skill) => ListTile(
-              leading: Text(skill.icon ?? '🧠', style: const TextStyle(fontSize: 24)),
-              title: Text(skill.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: Text(skill.description, style: const TextStyle(fontSize: 12)),
-              trailing: const Icon(Icons.chevron_right, size: 18),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                context.read<ChatProvider>().injectSkill(skill);
-              },
-            )),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showKnowledgePicker() async {
-    await _knowledgeService.refresh();
-    final items = _knowledgeService.items;
-    if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('知识库为空，先去设置页添加知识'), duration: Duration(seconds: 2)),
-      );
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  const Icon(Icons.menu_book, size: 18),
-                  const SizedBox(width: 8),
-                  Text('选择知识文档', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                  const Spacer(),
-                  IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => Navigator.of(ctx).pop()),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            ...items.map((item) => ListTile(
-              leading: const Icon(Icons.menu_book, color: Color(0xFF6C63FF)),
-              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: Text(
-                item.description.isNotEmpty ? item.description : '${item.content.length} 字',
-                style: const TextStyle(fontSize: 12),
-              ),
-              trailing: const Icon(Icons.chevron_right, size: 18),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                context.read<ChatProvider>().injectKnowledge(item);
-              },
-            )),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+                  onTap: () {
+                    chat.injectSkill(skill);
+                    // 实时刷新 UI 状态
+                    (ctx as Element).markNeedsBuild();
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -372,36 +335,36 @@ class _ChatPageState extends State<ChatPage> {
           // 激活的技能指示
           Consumer<ChatProvider>(
             builder: (context, chat, _) {
-              final skill = chat.activeSkill;
-              if (skill == null) return const SizedBox.shrink();
+              final skills = chat.activeSkills;
+              if (skills.isEmpty) return const SizedBox.shrink();
               return Container(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(skill.icon ?? '🧠', style: const TextStyle(fontSize: 14)),
-                          const SizedBox(width: 4),
-                          Text('${skill.name} 已加载 — 输入指令后自动使用',
-                              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.secondary)),
-                          const SizedBox(width: 4),
-                          GestureDetector(
-                            onTap: () => chat.deactivateSkill(),
-                            child: Icon(Icons.close, size: 14,
-                                color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.6)),
-                          ),
-                        ],
-                      ),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: skills.map((skill) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3)),
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(skill.icon ?? '🧠', style: const TextStyle(fontSize: 14)),
+                        const SizedBox(width: 4),
+                        Text(skill.name,
+                            style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.secondary)),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => chat.deactivateSkill(skill),
+                          child: Icon(Icons.close, size: 14,
+                              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.6)),
+                        ),
+                      ],
+                    ),
+                  )).toList(),
                 ),
               );
             },
@@ -411,7 +374,6 @@ class _ChatPageState extends State<ChatPage> {
             onSend: _sendMessage,
             onSendWithImage: _sendWithImage,
             onSkillTap: _showSkillPicker,
-            onKnowledgeTap: _showKnowledgePicker,
             enabled: (isProgramming ? hasProject : true) && hasApiKey && !chatProvider.isProcessing,
           ),
           // 模型切换

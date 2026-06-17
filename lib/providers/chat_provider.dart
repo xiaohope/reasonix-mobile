@@ -7,7 +7,6 @@ import '../models/message.dart';
 import '../models/tool_call.dart';
 import '../models/usage_info.dart';
 import '../models/skill.dart';
-import '../models/knowledge.dart';
 import '../services/llm_service.dart';
 import '../services/tool_engine.dart';
 import 'project_provider.dart';
@@ -21,7 +20,7 @@ class ChatProvider extends ChangeNotifier {
   bool _isStreaming = false;
   bool _stopRequested = false;
   bool _isProgrammingMode = false;  // 默认聊天模式
-  Skill? _activeSkill;              /// 当前激活的技能（注入上下文，不发消息）
+  final List<Skill> _activeSkills = [];  /// 当前激活的技能列表（持久生效，手动关闭）
   int _totalPromptTokens = 0;
   int _totalCompletionTokens = 0;
   int _totalCacheHitTokens = 0;
@@ -42,7 +41,8 @@ class ChatProvider extends ChangeNotifier {
   bool get isProcessing => _isProcessing;
   bool get isStreaming => _isStreaming;
   bool get isProgrammingMode => _isProgrammingMode;
-  Skill? get activeSkill => _activeSkill;
+  Skill? get activeSkill => null; // deprecated, use activeSkills
+  List<Skill> get activeSkills => List.unmodifiable(_activeSkills);
 
   String get usageSummary {
     final parts = <String>[];
@@ -504,23 +504,30 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 更新系统提示
-  /// [isProgramming] 可选覆盖，不传则用当前模式
+  /// 更新系统提示 — 编程模式或聊天模式有激活技能时注入
   void _updateSystemPrompt({bool? isProgramming}) {
     final programming = isProgramming ?? _isProgrammingMode;
-    final systemPrompt = programming
-        ? _buildProgrammingPrompt()
-        : '';
+    final skillPrompts = _activeSkills
+        .where((s) => s.prompt.isNotEmpty)
+        .map((s) => '## 技能：${s.name}\n${s.prompt}')
+        .join('\n\n');
+    final basePrompt = programming ? _buildProgrammingPrompt() : '';
+    final systemPrompt = skillPrompts.isNotEmpty
+        ? (basePrompt.isNotEmpty
+            ? '$basePrompt\n\n---\n\n当前激活的技能指令：\n\n$skillPrompts'
+            : '你是 Reasonix，一个手机上的 AI 助手。请用中文回答。\n\n当前激活的技能指令：\n\n$skillPrompts')
+        : basePrompt;
 
     final idx = _messages.indexWhere((m) => m.role == 'system');
-    if (programming) {
+    if (systemPrompt.isNotEmpty) {
       if (idx >= 0) {
         _messages[idx] = Message(role: 'system', content: systemPrompt);
-      } else if (_messages.isNotEmpty) {
+      } else if (_messages.isNotEmpty && _messages.first.role == 'user') {
+        _messages.insert(0, Message(role: 'system', content: systemPrompt));
+      } else if (idx < 0) {
         _messages.insert(0, Message(role: 'system', content: systemPrompt));
       }
     } else {
-      // 聊天模式 → 移除 system prompt
       if (idx >= 0) {
         _messages.removeAt(idx);
       }
@@ -543,19 +550,14 @@ class ChatProvider extends ChangeNotifier {
     }
     if (_llmService == null) return;
 
-    // 如果有激活的技能，将技能指令作为上下文合并到用户消息
-    String finalText = text.trim();
-    if (_activeSkill != null) {
-      finalText = '${_activeSkill!.prompt}\n\n---\n\n$finalText';
-      _activeSkill = null;
-    }
-    _messages.add(Message(role: 'user', content: finalText, imageBase64: imageBase64));
+    _messages.add(Message(role: 'user', content: text.trim(), imageBase64: imageBase64));
     _isProcessing = true;
     _stopRequested = false;
     notifyListeners();
 
     if (!_isProgrammingMode) {
-      // ── 聊天模式：纯聊天，不带工具，不加 system prompt ──
+      // ── 聊天模式：更新 system prompt（含激活技能），不带工具 ──
+      _updateSystemPrompt();
       try {
         final response = await _llmService!.chatComplete(_messages, includeTools: false);
         if (response.containsKey('error')) {
@@ -633,22 +635,31 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  /// 激活技能 — 注入上下文，不发消息，用户输入指令后自动合并
+  /// 激活/取消技能 — toggle 式，可同时激活多个技能
   void injectSkill(Skill skill) {
-    _activeSkill = skill;
+    final idx = _activeSkills.indexWhere((s) => s.id == skill.id);
+    if (idx >= 0) {
+      _activeSkills.removeAt(idx);
+    } else {
+      _activeSkills.add(skill);
+    }
+    _updateSystemPrompt();
     notifyListeners();
   }
 
-  /// 停用当前技能
-  void deactivateSkill() {
-    if (_activeSkill == null) return;
-    _activeSkill = null;
+  /// 停用指定技能
+  void deactivateSkill(Skill skill) {
+    _activeSkills.removeWhere((s) => s.id == skill.id);
+    _updateSystemPrompt();
     notifyListeners();
   }
 
-  /// 注入知识文档 — 将知识内容作为参考信息发送
-  void injectKnowledge(Knowledge knowledge) {
-    sendMessage('请参考以下知识来回答：\n\n${knowledge.content}');
+  /// 清空所有激活技能
+  void deactivateAllSkills() {
+    if (_activeSkills.isEmpty) return;
+    _activeSkills.clear();
+    _updateSystemPrompt();
+    notifyListeners();
   }
 
   void _addToolResult(ToolCall call, String result) {

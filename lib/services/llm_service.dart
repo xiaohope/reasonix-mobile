@@ -192,6 +192,7 @@ class LlmService {
       'tools': _tools,
       'stream': true,
       'temperature': _temperature,
+      'max_tokens': 16384,
     });
 
     final request = http.Request('POST', uri)
@@ -251,6 +252,7 @@ class LlmService {
       'messages': messages.map((m) => m.toApiMessage(multimodal: multimodal)).toList(),
       'stream': false,
       'temperature': _temperature,
+      'max_tokens': 16384,
     };
     if (includeTools) {
       bodyMap['tools'] = _tools;

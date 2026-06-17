@@ -52,7 +52,7 @@ class MessageBubble extends StatelessWidget {
                     ),
                     child: isUser
                         ? _buildUserContent(context, message)
-                        : _buildMarkdown(context, message.content),
+                        : _buildAssistantContent(context, message),
                   ),
                 // 复制按钮
                 if (!hasToolCalls)
@@ -208,6 +208,41 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
+  /// 助手消息内容（Markdown 文本 + base64 图片）
+  Widget _buildAssistantContent(BuildContext context, Message message) {
+    final children = <Widget>[];
+    // 先显示 base64 图片（如果有）
+    if (message.imageBase64 != null) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: GestureDetector(
+              onTap: () {
+                // 点击全屏查看的简单实现
+              },
+              child: Image.memory(
+                base64Decode(message.imageBase64!),
+                width: double.infinity,
+                fit: BoxFit.contain,
+                errorBuilder: (ctx, e, s) => const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    // 渲染 Markdown 文本
+    if (message.content.isNotEmpty) {
+      children.add(_buildMarkdown(context, message.content));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
   /// Markdown 渲染
   Widget _buildMarkdown(BuildContext context, String text) {
     final children = <Widget>[];
@@ -250,8 +285,16 @@ class MessageBubble extends StatelessWidget {
 
       // 检测独立图片 URL（行内容只有 URL 且以图片扩展名结尾）
       final urlTrimmed = line.trim();
-      if (RegExp(r'^https?://\S+\.(jpg|jpeg|png|gif|webp|bmp)(\?\S*)?$', caseSensitive: false).hasMatch(urlTrimmed)) {
+      final imgUrlPattern = RegExp(r'^https?://\S+\.(jpg|jpeg|png|gif|webp|bmp)(\?\S*)?$', caseSensitive: false);
+      if (imgUrlPattern.hasMatch(urlTrimmed)) {
         children.add(_buildImage(context, urlTrimmed, null));
+        continue;
+      }
+
+      // 检测 inline data:image URI（base64 编码的图片）
+      final dataImgMatch = RegExp(r'(data:image/\w+;base64,[A-Za-z0-9+/=]+)').firstMatch(line.trim());
+      if (dataImgMatch != null) {
+        children.add(_buildBase64Image(context, dataImgMatch.group(1)!));
         continue;
       }
 
@@ -268,7 +311,7 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  /// 图片渲染
+  /// 图片渲染（网络 URL）
   Widget _buildImage(BuildContext context, String url, String? alt) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -318,6 +361,36 @@ class MessageBubble extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Base64 data URI 图片渲染
+  Widget _buildBase64Image(BuildContext context, String dataUri) {
+    // 解析 data:image/<type>;base64,<data>
+    final commaIdx = dataUri.indexOf(',');
+    if (commaIdx < 0) {
+      return const SizedBox.shrink();
+    }
+    final b64 = dataUri.substring(commaIdx + 1);
+    if (b64.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.memory(
+          base64Decode(b64),
+          width: double.infinity,
+          fit: BoxFit.contain,
+          errorBuilder: (ctx, e, s) => Container(
+            height: 80,
+            color: Theme.of(context).colorScheme.surface,
+            child: const Center(
+              child: Icon(Icons.broken_image, size: 20, color: Colors.grey),
             ),
           ),
         ),
