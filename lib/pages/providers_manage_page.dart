@@ -106,7 +106,6 @@ class _ProvidersManagePageState extends State<ProvidersManagePage> {
                 );
               },
             ),
-      ),
     );
   }
 
