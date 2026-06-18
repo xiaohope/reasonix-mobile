@@ -36,6 +36,22 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
       appBar: AppBar(
         title: const Text('技能管理'),
         actions: [
+          // 新建技能 - 圆形 + 按钮
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              onPressed: () => _addSkill(),
+              tooltip: '新建技能',
+              style: IconButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                shape: const CircleBorder(),
+                padding: const EdgeInsets.all(8),
+                minimumSize: const Size(36, 36),
+              ),
+              icon: const Icon(Icons.add, size: 20),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.file_open_outlined),
             tooltip: '导入 .skill.md 文件',
@@ -105,11 +121,7 @@ class _SkillsManagePageState extends State<SkillsManagePage> {
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addSkill(),
-        icon: const Icon(Icons.add),
-        label: const Text('新建技能'),
-      ),
+      floatingActionButton: null,
     );
   }
 
@@ -325,12 +337,22 @@ class _SkillFilePickerState extends State<_SkillFilePicker> {
     try {
       final dir = Directory(_currentPath);
       if (!dir.existsSync()) return;
-      setState(() { _entries = dir.listSync()..sort((a, b) {
-        final ad = a is Directory, bd = b is Directory;
-        if (ad && !bd) return -1; if (!ad && bd) return 1;
-        return a.path.compareTo(b.path);
-      }); });
+      setState(() {
+        _entries = dir.listSync()..sort((a, b) {
+          final ad = a is Directory, bd = b is Directory;
+          if (ad && !bd) return -1;
+          if (!ad && bd) return 1;
+          return a.path.toLowerCase().compareTo(b.path.toLowerCase());
+        });
+      });
     } catch (_) {}
+  }
+
+  /// 安全地获取文件/文件夹名称，处理路径以 / 结尾的情况
+  String _entryName(FileSystemEntity e) {
+    final raw = e.uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (raw.isEmpty) return e.path;
+    return raw.last;
   }
 
   @override
@@ -348,17 +370,17 @@ class _SkillFilePickerState extends State<_SkillFilePicker> {
           child: Text(_currentPath, style: const TextStyle(fontFamily: 'monospace', fontSize: 12), overflow: TextOverflow.ellipsis)),
         Expanded(child: ListView.builder(itemCount: _entries.length, itemBuilder: (c, i) {
           final e = _entries[i];
-          final name = e.uri.pathSegments.last;
+          final name = _entryName(e);
           final isDir = e is Directory;
           final isSkillFile = name.endsWith('.skill.md');
           if (name.startsWith('.') || (isDir && (name == 'node_modules' || name == '.git' || name == '.dart_tool'))) return const SizedBox();
           return ListTile(dense: true,
             leading: Icon(isDir ? Icons.folder : (isSkillFile ? Icons.auto_awesome : Icons.insert_drive_file),
                 size: 20,
-                color: isDir ? const Color(0xFFF9E2AF) : (isSkillFile ? const Color(0xFF6C63FF) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3))),
-            title: Text(name, style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
-            subtitle: isSkillFile ? const Text('点击导入此技能', style: TextStyle(fontSize: 11)) : null,
-            trailing: isDir ? const Icon(Icons.chevron_right, size: 18) : null,
+                color: isDir ? const Color(0xFFF9E2AF) : (isSkillFile ? const Color(0xFF6C63FF) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5))),
+            title: Text(name, style: const TextStyle(fontFamily: 'monospace', fontSize: 13), overflow: TextOverflow.ellipsis),
+            subtitle: isSkillFile ? const Text('点击导入此技能', style: TextStyle(fontSize: 11)) : (isDir ? const Text('文件夹', style: TextStyle(fontSize: 11, color: Colors.grey)) : null),
+            trailing: isDir ? const Icon(Icons.chevron_right, size: 18) : (isSkillFile ? const Icon(Icons.file_download_outlined, size: 16, color: Color(0xFF6C63FF)) : null),
             onTap: () {
               if (isDir) { setState(() { _currentPath = e.path; }); _load(); }
               else if (isSkillFile) { Navigator.of(context).pop(e.path); }

@@ -106,12 +106,6 @@ class _ProvidersManagePageState extends State<ProvidersManagePage> {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showEditSheet(context),
-        icon: const Icon(Icons.add),
-        label: const Text('添加'),
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
       ),
     );
   }
